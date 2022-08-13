@@ -1,0 +1,3 @@
+[submodule "third_party/n-dof"]
+	path = third_party/n-dof
+	url = https://github.com/keeeal/n-dof
