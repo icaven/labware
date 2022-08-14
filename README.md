@@ -23,15 +23,15 @@ The part has a [GoPro](https://www.thingiverse.com/search?q=gopro) compatible fi
  to join to the robot arm.
 
 
-![](tri_suction bottom view.png) 
+![](tri_suction_bottom_view.png) 
 
 Bottom view
 
-![](tri_suction cut away view.png) 
+![](tri_suction_cut_away_view.png) 
 
 Cut away view showing air channel
 
-![](tri_suction top view.png) 
+![](tri_suction_top_view.png) 
 
 Top view
 
