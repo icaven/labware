@@ -12,16 +12,16 @@ The customizer can be used to select the print to be generated.
 ![customizer parameters](customizer_parameters.png)
 
 ### 15 ml plate
-![15 ml plate](15 ml plate.png)
+![15 ml plate](15%20ml%20plate.png)
 
 ### 50 ml plate
-![50 ml plate](50 ml plate.png)
+![50 ml plate](50%20ml%20plate.png)
 
 ### 15 and 50 ml mix plate
-![15 and 50 ml plate](15 and 50 ml plate.png)
+![15 and 50 ml plate](15%20and%2050%20ml%20plate.png)
 
 ### 1.5 ml plate with cap slots
-![1.5 ml plate](1.5 ml plate.png)
+![1.5 ml plate](1.5%20ml%20plate.png)
 
 ### Stand
 ![stand](stand.png)
