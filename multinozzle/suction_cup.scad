@@ -1,5 +1,6 @@
 /*
     A suction cup for the multi-nozzle platform.  This should be printed with a flexible material such as TPU.
+    Still a work in progress, and some modifications are needed.
  */
 
 barb_height = 5.5;
