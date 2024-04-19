@@ -209,6 +209,7 @@ if (test_print_for_tapered_tube_support){
 }
 else
 {
+    translate([0, 0, construction_truncated_taper_height+extra_tube_support_height])
     rotate([180, 0, 0])
         benchtop_tapered_tube_support();
 }
