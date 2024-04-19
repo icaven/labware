@@ -1,8 +1,11 @@
 /*
-Tapered tube holder for benchtop
+    Tapered tube holder for benchtop
+    
+    CERN Open Hardware Licence Version 2 - Permissive
 
-2022-07-28      Ian Caven   - Modified tapered tube holder for the benchtop
-
+    Copyright (c) 2022-2024, Ian Cavén
+    All rights reserved.
+    
 */
 
 // Set to true to make a test print of the tube support
@@ -12,7 +15,7 @@ default_support_print_height = 5;
 
 
 // The number of supporting segments (must be even for a symmetric result)
-number_taper_tube_support_spokes = 12;
+number_taper_tube_support_spokes = 6;
 
 // The tapered tube bottom support
 taper_angle = 54.2;   // degrees from the center axis
