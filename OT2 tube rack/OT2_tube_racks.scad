@@ -474,7 +474,7 @@ module complete_holder_stand()
                 rounded_prism(square([stand_length + 2*(top_plate_margin + difference_tolerance), short_side_punch_out_width], center=true), 
                     apply(scale([1, side_narrowing, 1]),
                     square([stand_length + 2*(top_plate_margin + difference_tolerance), short_side_punch_out_width], center=true)), 
-                    height=hollow_height, joint_top=(short_side_punch_out_width*side_narrowing)/2, joint_bot=5, joint_sides=5);
+                    height=hollow_height, joint_top=5, joint_bot=5, joint_sides=5);
                           
                 // Top punch out
                 color("magenta")
