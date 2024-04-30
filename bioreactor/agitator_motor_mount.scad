@@ -41,7 +41,6 @@
 include <BOSL2/std.scad>
 include <BOSL2/ball_bearings.scad>
 include <BOSL2/nema_steppers.scad>
-include <BOSL2/joiners.scad>
 include <BOSL2/rounding.scad>
 include <BOSL2/screws.scad>
 include <BOSL2/structs.scad>
