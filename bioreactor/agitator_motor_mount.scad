@@ -63,10 +63,8 @@ motor_screw_length = 8;
 motor_body_length = 59;
 
 /* [Bearing oversize dimensions] */
-// Bearing outer diameter oversize to allow for silicon adhesive
-bearing_od_oversize = 0.25;
-// Bearing inner diameter oversize (to be outside of the rotating center)
-bearing_id_oversize = 6.;
+// Bearing outer diameter oversize
+bearing_od_oversize = 0.1;
 
 /* [Controller board dimensions] */
 // Controller board plate width
@@ -172,6 +170,10 @@ bearing_id = bearing_info[0];
 bearing_od = bearing_info[1];
 // The width of the bearing
 bearing_width= bearing_info[2];
+
+// Bearing inner diameter oversize (to be outside of the rotating center)
+// Make it half-way between the inner and outer diameters
+bearing_id_oversize = (bearing_od - bearing_id) / 2;
 
 motor_mounting_plate_size = motor_info[0] + motor_screw_head_clearance_d/2;
 collar_od = motor_info[2] + wall_thickness * 3 + motor_mounting_plate_adjustment_range * 2;
