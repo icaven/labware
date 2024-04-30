@@ -7,31 +7,29 @@ include <BOSL2/screws.scad>
 include <BOSL2/structs.scad>
 include <BOSL2/threading.scad>
 
+// Show a part, or the assembled parts in position
+part_to_show = "all, assembled"; // ["all, assembled", "mount", "nut", "controller_mounting_board"]
+
+/* [NEMA motor specifications] */
 // The NEMA motor number
 nema_motor_size = 17; // [11, 14, 17, 23]
-// The diameter of the outside of the bearing
-bearing_od = 22.0; // 0.1
-// The diameter of the inside of the bearing
-bearing_id = 8.0;  // 0.1
-// The height of the bearing
-bearing_height= 7.0;    // 0.1
-// Bearing od oversize to allow for silicon adhesive
-bearing_od_oversize = 0.25;
-// Bearing id oversize (to be outside of the rotating center)
-bearing_id_oversize = 6.;
-
-// Show the motor and the controller board in position
-show_assembled = false;
-
-// The length of the motor body
-motor_body_length = 59;
 
 // The length of the motor shaft
 motor_shaft_length = 24;
 
 // Length of screws used to mount the motor
-motor_screw_length = 6;
+motor_screw_length = 8;
 
+// The length of the motor body (used for visualization only)
+motor_body_length = 59;
+
+/* [Bearing oversize dimensions] */
+// Bearing outer diameter oversize to allow for silicon adhesive
+bearing_od_oversize = 0.25;
+// Bearing inner diameter oversize (to be outside of the rotating center)
+bearing_id_oversize = 6.;
+
+/* [Controller board dimensions] */
 // Controller board plate width
 controller_board_plate_width = 100;
 
@@ -41,11 +39,15 @@ controller_board_plate_length = 50;
 // Controller board plate depth
 controller_board_plate_depth = 1;
 
-// Controller board metric screw diameter (mm)
+// Diameter of screw to attach controller board to mount (mm)
 controller_board_screw_diameter = 3;
 
-// Controller board screw length
+// Length of screw to attach controller board to mount (mm)
 controller_board_screw_length = 10;
+
+/* [Other dimensions] */
+// Thickness of the motor mount walls
+wall_thickness = 3.0; // [2.0:0.1:5.0]
 
 // Thickness of the head plate that the mount will screw into
 head_plate_thickness = 4;
@@ -60,9 +62,13 @@ module __end_of_customizer_variables() {}
 post_nut_height = 10;
 nut_diameter = 47;
 mount_thread_pitch = 1.;
-rod_diameter = 30;
+mount_thread_depth = 1;
 
-wall_thickness = 2.0;
+rod_diameter = 30;
+threaded_rod_inside_r = rod_diameter/ 2 - wall_thickness - mount_thread_depth;
+
+rod_o_ring_od = rod_diameter + 3;
+
 difference_tolerance = 0.1;
 $fn=100;    // Default resolution
 
@@ -95,6 +101,39 @@ motor_screw_head_d = struct_val(motor_screw_info, "head_size");
 motor_screw_head_height = struct_val(motor_screw_info, "head_height");
 motor_screw_head_clearance_d = motor_screw_head_d + 1;
 
+// The diameter of the motor shaft diameter ( same as the rod attaching the motor to the impeller)
+motor_shaft_diameter = motor_info[6];
+echo("Motor shaft diameter: ", motor_shaft_diameter);
+
+// Look up the ball bearing that has the same inner diameter as the motor shaft
+function ball_bearing_to_use(motor_shaft_size) =
+    assert(is_type(motor_shaft_size, ["number"]))
+    let(
+        data = [
+            // motor_shaft_size, bearing_trade_size for metric shielded bearing without flange
+            [5,    "635ZZ"],
+            [6.35, "R4ZZ"],
+            [8,    "608ZZ"],
+            [9,    "629ZZ"],
+            [10,   "6000ZZ"],
+        ],
+        found = search(motor_shaft_size, data, 1)[0]
+    )
+    assert(found!=[], str("Unsupported motor shaft size: ", motor_shaft_size))
+    data[found][1];
+
+bearing_to_use = ball_bearing_to_use(motor_shaft_diameter);
+echo("Bearing to use: ", bearing_to_use);
+
+bearing_info = ball_bearing_info(bearing_to_use);
+
+// The diameter of the inside of the bearing ( == the motor shaft diameter)
+bearing_id = bearing_info[0];
+// The diameter of the outside of the bearing
+bearing_od = bearing_info[1];
+// The width of the bearing
+bearing_width= bearing_info[2];
+
 motor_mounting_plate_size = motor_info[0] + motor_screw_head_clearance_d/2;
 collar_od = motor_info[2] + wall_thickness * 3 + motor_mounting_plate_adjustment_range * 2;
 motor_screw_clearance = 0.5;  // Gap between end of screw and bottom of screw hole in motor
@@ -110,21 +149,29 @@ motor_mounting_plate_width = max(motor_mounting_plate_size + motor_screw_head_cl
                                  minimum_mounting_plate_size + motor_mounting_plate_adjustment_range);
 motor_mounting_plate_length = max(motor_mounting_plate_size, minimum_mounting_plate_size);
 
-// Transition between support post and rod, sloped at 45 degrees
+// Transition between support post and rod, sloped at specified angle
 angle_of_taper = 45;
-thickness_between_collar_and_rod = sin(angle_of_taper) * ((collar_od - rod_diameter)/2 + wall_thickness);
-thickness_between_inner_support_and_rod_d = max(0, sin(angle_of_taper) * ((collar_od - rod_diameter)/2 - wall_thickness));
+//thickness_between_collar_and_rod = sin(angle_of_taper) * ((collar_od - rod_diameter)/2 + wall_thickness);
+thickness_between_collar_and_rod = sin(angle_of_taper) * ((collar_od - rod_diameter)/2);
+thickness_between_inner_support_and_rod_d = max(0, sin(angle_of_taper) * ((collar_od - rod_diameter)));
 collar_support_height = 2;
 
 support_height = max(motor_shaft_length * 1.5, motor_shaft_length + thickness_between_collar_and_rod + collar_support_height);
 
-// Create the threaded section that screws into the head plate of the bioreactor
+// 
+// Module: hollow_threaded_rod_with_bearing_support()
+// Synopsis: Create the threaded section that screws into the head plate of the bioreactor.
+// Usage:
+//   hollow_threaded_rod_with_bearing_support();
+// Description:
+//   Create the threaded section that screws into the head plate of the bioreactor.
+//   Allows for a bearing to be inserted to support the impeller shaft.
 module hollow_threaded_rod_with_bearing_support()
 {
     rod_height = post_nut_height + head_plate_thickness;
     bearing_support_cutout_z = 2;
     tapered_bearing_support_cutout_z = 4;
-    assert(rod_height > (bearing_height+bearing_support_cutout_z + tapered_bearing_support_cutout_z));
+    assert(rod_height > (bearing_width+bearing_support_cutout_z + tapered_bearing_support_cutout_z));
 
     // Hollow threaded part, with support for a bearing at the top end
     up(rod_height)
@@ -132,27 +179,34 @@ module hollow_threaded_rod_with_bearing_support()
     {
         down(rod_height/2)
         threaded_rod(d=rod_diameter, height=rod_height, pitch=mount_thread_pitch, 
-                     end_len1=0, $fa=1, $fs=1, blunt_start=true);
+                     end_len1=0, $fa=1, $fs=1, blunt_start=true, bevel2=true);
         
         // Make a space for the bearing
-        down(bearing_height/2)
-        cylinder(h=bearing_height+difference_tolerance, r=(bearing_od + bearing_od_oversize)/2, center=true, $fn=100);
+        down(bearing_width/2)
+        cylinder(h=bearing_width+difference_tolerance, r=(bearing_od + bearing_od_oversize)/2, center=true, $fn=100);
 
         // Support for the bearing
-        down(bearing_height+bearing_support_cutout_z/2)
+        down(bearing_width+bearing_support_cutout_z/2)
         cylinder(h=bearing_support_cutout_z, r=(bearing_id + bearing_id_oversize)/2, center=true, $fa=1, $fs=1);
 
-        down(bearing_height+bearing_support_cutout_z+tapered_bearing_support_cutout_z/2)
-        cylinder(h=tapered_bearing_support_cutout_z, r1=rod_diameter/2-wall_thickness, 
+        down(bearing_width+bearing_support_cutout_z+tapered_bearing_support_cutout_z/2)
+        cylinder(h=tapered_bearing_support_cutout_z, r1=threaded_rod_inside_r, 
                  r2=(bearing_id + bearing_id_oversize)/2, center=true, $fa=1, $fs=1);
         
         // Hollow out the rest of the threaded rod
-        down(rod_height/2+bearing_height+bearing_support_cutout_z+tapered_bearing_support_cutout_z)
-        cylinder(h=rod_height, r=rod_diameter/2-wall_thickness, center=true, $fa=1, $fs=1);
+        down(rod_height/2+bearing_width+bearing_support_cutout_z+tapered_bearing_support_cutout_z)
+        cylinder(h=rod_height, r=threaded_rod_inside_r, center=true, $fa=1, $fs=1);
     }
   
 }
 
+// Module: hollow_motor_support_with_collar()
+// Synopsis: Create the support column with an outer collar.
+// Usage:
+//   hollow_motor_support_with_collar();
+// Description:
+//   Create the support column with an outer collar (if the collar is needed). The column will have holes to allow access
+//   to the motor shaft coupler.
 module hollow_motor_support_with_collar()
 {
 //    // Transition between support post and rod, sloped at 45 degrees
@@ -165,13 +219,13 @@ module hollow_motor_support_with_collar()
 
            // Collar around the post
            up(support_height-collar_support_height/2)
-           cylinder(h=collar_support_height, r=collar_od/2+wall_thickness, 
+           cylinder(h=collar_support_height, r=rod_o_ring_od/2, 
                     center=true, $fa=1, $fs=1);
 
            // Tapered support for the collar        
            up(support_height-collar_support_height-tapered_collar_support_height/2)
-           cylinder(h=tapered_collar_support_height, r2=collar_od/2+wall_thickness, 
-                    r1=collar_od/2-1, center=true, $fa=1, $fs=1);
+           cylinder(h=tapered_collar_support_height, r2=rod_o_ring_od/2, 
+                    r1=collar_od/2, center=true, $fa=1, $fs=1);
         }
         
         union()
@@ -179,32 +233,31 @@ module hollow_motor_support_with_collar()
             d_tol = thickness_between_inner_support_and_rod_d > 0 ? 0 : difference_tolerance;
             down(d_tol)
             cylinder(h=support_height-thickness_between_inner_support_and_rod_d+d_tol*2, 
-                    r=collar_od/2-wall_thickness-motor_mounting_plate_adjustment_range/2, $fa=1, $fs=1);
+                    r=collar_od/2-wall_thickness, $fa=1, $fs=1);
            
             if (d_tol == 0)
             {
                 // Remove the top and bottom of the tapered section, so that the difference in the preview shows correctly
                 up(support_height)
                 cylinder(h = difference_tolerance * 2,
-                          r = rod_diameter / 2 - wall_thickness, center = true, $fa = 1, $fs = 1);
+                          r = threaded_rod_inside_r, center = true, $fa = 1, $fs = 1);
                 
                 up(support_height-thickness_between_inner_support_and_rod_d)
                 cylinder(h = difference_tolerance,
-                          r1 = collar_od / 2 - wall_thickness-motor_mounting_plate_adjustment_range/2,
-                          r2 = collar_od / 2 - wall_thickness-motor_mounting_plate_adjustment_range/2-difference_tolerance,
+                          r1 = collar_od / 2 - wall_thickness,
+                          r2 = collar_od / 2 - wall_thickness-difference_tolerance,
                 center = true, $fa = 1, $fs = 1);
                 
                 // Remove the bottom of the support tube, so that the difference in the preview shows correctly
                 cylinder(h = difference_tolerance * 2,
-                         r = collar_od / 2 - wall_thickness-motor_mounting_plate_adjustment_range/2, 
+                         r = collar_od / 2 - wall_thickness, 
                          center = true, $fa = 1, $fs = 1);
             }
             
-            color("red")
             up(support_height-thickness_between_inner_support_and_rod_d/2)
             cylinder(h=thickness_between_inner_support_and_rod_d, 
-                    r1=collar_od/2-wall_thickness-motor_mounting_plate_adjustment_range/2, 
-                    r2=rod_diameter/2-wall_thickness,
+                    r1=collar_od/2-wall_thickness, 
+                    r2=threaded_rod_inside_r,
                     center=true, $fa=1, $fs=1);
 
         }
@@ -223,9 +276,12 @@ module hollow_motor_support_with_collar()
     }
 }
 
-/*
-The controller board is attached to the motor mount with a couple of cubes each with a nut trap
- */
+// Module: controller_board_attachment_nut_trap()
+// Synopsis: Nut trap.
+// Usage:
+//   controller_board_attachment_nut_trap();
+// Description:
+//   The controller board is attached to the motor mount with a couple of cubes each with a nut trap.
 module controller_board_attachment_nut_trap()
 {
     up(attachment_nut_cuboid_depth/2)
@@ -244,7 +300,7 @@ module controller_board_attachment_nut_trap()
             }
         }
 
-        if (show_assembled)
+        if (part_to_show == "all, assembled")
         {
             // Show the screw and nut in place
             color("grey")
@@ -262,9 +318,13 @@ module controller_board_attachment_nut_trap()
     }
 }
 
-/*
-    The plate that the motor controller electronics will be mounted onto.  Attached by screws to the motor mount.
-*/
+// Module: controller_board_mounting_plate()
+// Synopsis: The plate that the motor controller electronics will be mounted onto.
+// Usage:
+//   controller_board_mounting_plate();
+// Description:
+//   The plate that the motor controller electronics will be mounted onto.
+//   Attached by screws to the motor mount.
 module controller_board_mounting_plate()
 {
     difference()
@@ -287,6 +347,13 @@ module controller_board_mounting_plate()
         }
 }
 
+// Module: motor_mount()
+// Synopsis: Creates a threaded column with a plate to mount a motor to.
+// Usage:
+//   motor_mount();
+// Description:
+//   Creates a threaded column with a plate to mount a motor to.
+//   The mount is screwed into the bioreactor head plate.
 module motor_mount()
 {    
     // Create the threaded holder (upside down)
@@ -319,7 +386,7 @@ module motor_mount()
 
     }
 
-    front_edge_location = max(minimum_mounting_plate_size, motor_mounting_plate_width)/2;
+    front_edge_location = max(max(minimum_mounting_plate_size, motor_mounting_plate_width), collar_od + attachment_nut_cuboid_width)/2;
     up(motor_mounting_plate_height/2)
     union()
     {
@@ -365,16 +432,15 @@ module motor_mount()
 
 }
 
-if (show_assembled)
+if (part_to_show == "all, assembled")
 {
-    zflip()
+    zflip()  // Show the assembly in the orientation that it will be used in
         {
             motor_mount();
             
             // Show the controller board
-//            board_back_face_location = max(minimum_mounting_plate_size, motor_mounting_plate_width)/2-
-//              motor_mounting_plate_adjustment_range+controller_board_plate_depth + attachment_nut_cuboid_length/2+1;
-            board_back_face_location = max(minimum_mounting_plate_size, motor_mounting_plate_width)/2+
+            board_back_face_location = max(max(minimum_mounting_plate_size, motor_mounting_plate_width), 
+                                           collar_od + attachment_nut_cuboid_width)/2+
                     controller_board_plate_depth/2 + attachment_nut_cuboid_length/2;
 
             color([0, 1, 0, 0.5])
@@ -406,20 +472,23 @@ if (show_assembled)
             0.05, $fa = 1, $fs = 1);
             
             // Show the bearing
-            up(post_nut_height + motor_mounting_plate_height + support_height + head_plate_thickness-bearing_height/2)
-            ball_bearing(id=bearing_id,od=bearing_od,width=bearing_height, shield=true, flange=false, $fn=72);
+            up(post_nut_height + motor_mounting_plate_height + support_height + head_plate_thickness-bearing_width/2)
+            ball_bearing(id=bearing_id,od=bearing_od,width=bearing_width, shield=true, flange=false, $fn=72);
         }
     
 }
-else
+else if (part_to_show=="mount")
 {
+//    back_half(s=150) 
     motor_mount();
-
-    left(100)
+}
+else if (part_to_show=="controller_mounting_board")
+{
     controller_board_mounting_plate();
-    
+}
+else if (part_to_show=="nut")
+{
     // The matching nut
-    right(motor_mounting_plate_width+nut_diameter/2)
     up(post_nut_height/2)
     zrot(30)
     threaded_nut(nutwidth=nut_diameter, id=rod_diameter, h=post_nut_height, pitch=mount_thread_pitch, $slop=0.05, $fa=1, $fs=1);
