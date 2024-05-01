@@ -62,7 +62,8 @@ motor_screw_length = 8;
 // The length of the motor body (used for visualization only)
 motor_body_length = 59;
 
-/* [Bearing oversize dimensions] */
+/* [Bearing dimensions] */
+bearing_choice = "match shaft size"; // ["match shaft size", "635ZZ", "685ZZ", "R4ZZ", "608ZZ"]
 // Bearing outer diameter oversize
 bearing_od_oversize = 0.1;
 
@@ -132,7 +133,7 @@ motor_info = nema_motor_info(nema_motor_size);
 
 // Get the information on the screws used to attach the motor to the mount
 screw_spacing = motor_info[3];
-screw_size = ceil(motor_info[4]);  // NEMA23 needs M5.1, but that size isn't supported by screw(), so use 6
+screw_size = round(motor_info[4]);
 motor_screw_info = screw_info(str("M", screw_size), "socket", "hex");
 motor_screw_head_d = struct_val(motor_screw_info, "head_size");
 motor_screw_head_height = struct_val(motor_screw_info, "head_height");
@@ -143,33 +144,46 @@ motor_shaft_diameter = motor_info[6];
 echo("Motor shaft diameter: ", motor_shaft_diameter);
 
 // Look up the ball bearing that has the same inner diameter as the motor shaft
-function ball_bearing_to_use(motor_shaft_size) =
+// Update this list for those available from local suppliers
+function ball_bearing_matching_motor_shaft(motor_shaft_size) =
     assert(is_type(motor_shaft_size, ["number"]))
     let(
-        data = [
+        bearings_by_inner_diameter = [
             // motor_shaft_size, bearing_trade_size for metric shielded bearing without flange
-            [5,    "635ZZ"],
+//            [5,    "635ZZ"],
+            [5,    "685ZZ"],
             [6.35, "R4ZZ"],
             [8,    "608ZZ"],
-            [9,    "629ZZ"],
-            [10,   "6000ZZ"],
         ],
-        found = search(motor_shaft_size, data, 1)[0]
+        found = search(motor_shaft_size, bearings_by_inner_diameter, 1)[0]
     )
     assert(found!=[], str("Unsupported motor shaft size: ", motor_shaft_size))
-    data[found][1];
+    bearings_by_inner_diameter[found][1];
 
-bearing_to_use = ball_bearing_to_use(motor_shaft_diameter);
+// Subset from BOSL2 and augmented for additional bearings
+// Update this list for those available from local suppliers
+inch_to_mm = 25.4;
+selected_bearings_by_trade_size = [
+     // trade_size, ID,     OD,      width,  shielded, flanged, fd, fw 
+    [   "635ZZ",    5,      19,      6,      true,     false,   0,  0 ],
+    [   "685ZZ",    5,      11,      5,      true,     false,   0,  0 ],
+    [   "R4ZZ",  1/4*inch_to_mm,  5/8*inch_to_mm, 0.196*inch_to_mm, true,    false,   0,  0  ],
+    [   "608ZZ",    8,      22,      7,      true,     false,   0,  0 ],
+];
+
+bearing_to_use = bearing_choice == "match shaft size" ? ball_bearing_matching_motor_shaft(motor_shaft_diameter) : bearing_choice;
 echo("Bearing to use: ", bearing_to_use);
 
-bearing_info = ball_bearing_info(bearing_to_use);
+bearing_info_index = search([bearing_to_use], selected_bearings_by_trade_size, 1);
+assert(bearing_info_index!=[], str("Unsupported ball bearing: ", bearing_to_use));
+bearing_info = selected_bearings_by_trade_size[bearing_info_index[0]];
 
-// The diameter of the inside of the bearing ( == the motor shaft diameter)
-bearing_id = bearing_info[0];
+// The diameter of the inside of the bearing
+bearing_id = bearing_info[1];
 // The diameter of the outside of the bearing
-bearing_od = bearing_info[1];
+bearing_od = bearing_info[2];
 // The width of the bearing
-bearing_width= bearing_info[2];
+bearing_width= bearing_info[3];
 
 // Bearing inner diameter oversize (to be outside of the rotating center)
 // Make it half-way between the inner and outer diameters
