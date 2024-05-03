@@ -1,5 +1,5 @@
 /*
-    Mount mount for Bioreactor.
+    Agitator motor mount for a bioreactor.
     
     Software license:
     BSD 2-Clause License
@@ -88,10 +88,13 @@ controller_board_screw_length = 10;
 wall_thickness = 3.0; // [2.0:0.1:5.0]
 
 // Thickness of the head plate that the mount will screw into
-head_plate_thickness = 4;
+head_plate_thickness = 15;
 
 // Allow the motor to adjusted slightly in one direction
 motor_mounting_plate_adjustment_range = 2;
+
+// For the nut: The printer-specific slop value, which adds clearance 4*slop to internal threads.
+slop = 0.07;
 
 // Don't need to change anything after this
 module __end_of_customizer_variables() {}
@@ -100,7 +103,7 @@ module __end_of_customizer_variables() {}
 post_nut_height = 10;
 nut_diameter = 47;
 mount_thread_pitch = 1.;
-mount_thread_depth = 1;
+mount_thread_depth = 5/8 * cos(30) * mount_thread_pitch;  // For a ISO metric thread
 
 rod_diameter = 30;
 threaded_rod_inside_r = rod_diameter/ 2 - wall_thickness - mount_thread_depth;
