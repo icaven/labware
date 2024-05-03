@@ -7,9 +7,9 @@ This directory contains parts designed with OpenSCAD that are used with a biorea
 A septum is a rubber stopper, which seals a port into the bioreactor.  A metal cap is crimped
 onto the top of the holder, fixing the septum in place.  
 
-![Side view](septum_holder_side.png)
-![Front right view](septum_holder_front_right.png)
-![Looking up view](septum_holder_looking_up.png)
+![Side view](images/septum_holder_side.png)
+![Front right view](images/septum_holder_front_right.png)
+![Looking up view](images/septum_holder_looking_up.png)
 
 ## Agitator motor mount
 
@@ -28,11 +28,11 @@ The OpenSCAD preview of the assembly shows an "X-ray" view (like using a fluoros
 what is beneath the motor.
 
 ### NEMA 17 motor
-![NEMA 17 front right view](agitator_motor_mount_front_right.png)
-![NEMA 17 side view](agitator_motor_mount_side.png)
-![NEMA 17 looking up view](agitator_motor_mount_looking_up.png)
+![NEMA 17 front right view](images/agitator_motor_mount_front_right.png)
+![NEMA 17 side view](images/agitator_motor_mount_side.png)
+![NEMA 17 looking up view](images/agitator_motor_mount_looking_up.png)
 
 ### NEMA 23 motor
-![NEMA 23 front right view](agitator_motor_mount_front_right_23.png)
-![NEMA 23 side view](agitator_motor_mount_side_23.png)
-![NEMA 23 looking up view](agitator_motor_mount_looking_up_23.png)
+![NEMA 23 front right view](images/agitator_motor_mount_front_right_23.png)
+![NEMA 23 side view](images/agitator_motor_mount_side_23.png)
+![NEMA 23 looking up view](images/agitator_motor_mount_looking_up_23.png)
