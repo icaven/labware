@@ -94,7 +94,7 @@ head_plate_thickness = 15;
 motor_mounting_plate_adjustment_range = 2;
 
 // For the nut: The printer-specific slop value, which adds clearance 4*slop to internal threads.
-slop = 0.07;
+slop = 0.07; // 0.01
 
 // Don't need to change anything after this
 module __end_of_customizer_variables() {}
@@ -209,7 +209,6 @@ motor_mounting_plate_length = max(motor_mounting_plate_size, minimum_mounting_pl
 
 // Transition between support post and rod, sloped at specified angle
 angle_of_taper = 45;
-//thickness_between_collar_and_rod = sin(angle_of_taper) * ((collar_od - rod_diameter)/2 + wall_thickness);
 thickness_between_collar_and_rod = sin(angle_of_taper) * ((collar_od - rod_diameter)/2);
 thickness_between_inner_support_and_rod_d = max(0, sin(angle_of_taper) * ((collar_od - rod_diameter)));
 collar_support_height = 2;
