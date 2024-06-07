@@ -12,7 +12,7 @@ use <magnet_trap.scad>
 /* [Viewing options] */
 
 // Show a part, or the assembled parts in position
-part_to_show = "jar lid from mold"; // ["jar lid from mold","lid_top_mold","lid_bottom_mold","jar lid cutting jig","18 mm port mold","10 mm port mold","6 mm port mold","test"]
+part_to_show = "jar lid from mold"; // ["jar lid from mold","lid_top_mold","lid_bottom_mold","plate drilling template","jar lid cutting jig","18 mm port mold","10 mm port mold","6 mm port mold","test"]
 
 // Show the embedded support_plate
 show_support_plate = true; 
@@ -889,17 +889,17 @@ module lid_bottom_mold()
                 cube([stopper_taper_width * 2, stopper_taper_width*2, 2 + difference_tolerance], anchor = BOTTOM);
             }
         }
-
-        down(difference_tolerance)
-        cylinder(h = taper_height - mold_wall_thickness + difference_tolerance, d2 = interior_dome_diameter_top,
-        d1 = interior_dome_diameter_base, anchor = BOTTOM);
+        
+//         down(difference_tolerance)
+//       #cylinder(h = taper_height - mold_wall_thickness + difference_tolerance, d2 = interior_dome_diameter_top,
+//        d1 = interior_dome_diameter_base, anchor = BOTTOM);
 
     }
-    up(taper_height-mold_wall_thickness+difference_tolerance)
-    yrot(180)
-    linear_extrude(1)
-    text("DON'T POUR SILICONE IN HERE!", size= 3.5, halign = "center",
-            valign = "center", $fn = 100);
+//    up(taper_height-mold_wall_thickness+difference_tolerance)
+//    yrot(180)
+//    linear_extrude(1)
+//    text("DON'T POUR SILICONE IN HERE!", size= 3.5, halign = "center",
+//            valign = "center", $fn = 100);
 }
 
 module lid()
@@ -1116,7 +1116,7 @@ module lid_cutting_jig()
 
 module lid_top_from_mold(show_molded_part)
 {
-    up(lid_mold_height)
+    up(show_molded_part ? lid_mold_height : 0)
     xrot(show_molded_part ? 180: 0)
     difference()
     {
@@ -1134,8 +1134,8 @@ module lid_top_from_mold(show_molded_part)
 
 module lid_bottom_from_mold(show_molded_part)
 {
-    up(show_molded_part ? taper_height: 0)
-    xrot(show_molded_part ? 180: 0)
+    up(taper_height)
+    xrot(180)
     difference()
     {
         if (show_molded_part)
@@ -1151,7 +1151,7 @@ module lid_bottom_from_mold(show_molded_part)
         if (show_molded_part)
         {
             down(difference_tolerance)
-            cylinder(h = taper_height+2*difference_tolerance, d2 = diameter_inside_hollow_of_tapered_base, 
+            cylinder(h = taper_height+mold_wall_thickness+2*difference_tolerance, d2 = diameter_inside_hollow_of_tapered_base, 
                      d1 = diameter_inside_hollow_of_tapered_base_with_draft, 
             anchor = BOTTOM);
         }
@@ -1213,14 +1213,26 @@ else if (part_to_show == "6 mm port mold")
     back_half(s = show_cross_section ? 200 : 0)
     mold_for_threaded_post_for_port(mini_port_d, 4 * threaded_post_wall_thickness, 0, snap_pin_specs, partition_specs);
 }
-else if (part_to_show == "test")
+else if (part_to_show == "plate drilling template")
 {
     //zflip()
 //    test_insert();
     projection(cut = true) 
     down(support_plate_thickness/2)
     support_plate(true);
+
+}
+else if (part_to_show == "test")
+{
+    //zflip()
+    test_insert();
+//    %up(lid_mold_height/2) prismic_column(lid_mold_height, BOTTOM, 0, DOWN)
+//    tag("remove") attach(CENTER) recolor("red") down(lid_mold_height) cyl(d=2, h=3);
+//    %prismic_column(lid_mold_height, BOTTOM, 0, DOWN)
+//    show_anchors(10);
     
+//    left(30)
+//        prismic_column(lid_mold_height, TOP, UP);
 
 }
 
