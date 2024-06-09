@@ -60,6 +60,11 @@ mold_wall_thickness_num_layers = 10;
 // Angle from vertical to make the extraction from the mold easier
 mold_draft_angle = 1;
 
+use_screws_to_hold_together_mold_halves = true;
+mold_screw = "M3";  // ["6-32", "M4", "M3"]
+mold_screw_head = "pan"; // ["pan", "socket"]
+number_mold_joining_columns = 3; // [3:6]
+
 /* [Other specifications] */
 impeller_shaft_diameter = 6.35;
 sliding_tolerance = 0.1;
@@ -162,7 +167,14 @@ support_plate_or = cutting_r - bit_diameter / 2;  // Don't include the bit_clear
 phase_angle_small = 180 / (number_ports);
 phase_angle_mini = 180 / (number_ports);
 
+// When using magnets to hold the two mold halves together
 mold_magnet_dims = struct_set([], ["diameter", 8, "thickness", 3]);
+
+// When using screws to hold the two mold halves together
+mold_screw_drive = mold_screw_head == "pan" ? "phillips" : "hex";
+mold_screw_info = screw_info(mold_screw, mold_screw_head, mold_screw_drive);
+mold_screw_head_height = struct_val(mold_screw_info, "head_height") == undef ? 0 : struct_val(mold_screw_info, "head_height");
+
 
 thickness_above_support_plate = 2;
 thickness_below_support_plate = 2;
@@ -201,7 +213,6 @@ thickness_above_rim_qup = quantup(thickness_above_rim, layer_height);
 stopper_thickness_qup = quantup(stopper_thickness, layer_height);
 bearing_width_qup = quantup(bearing_width, layer_height);
 lid_mold_height = thickness_above_rim_qup+mold_wall_thickness+bearing_width_qup+difference_tolerance;
-number_magnetic_columns = 3;
 magnetic_column_d = struct_val(mold_magnet_dims, "diameter")+mold_wall_thickness;
 impeller_shaft_d_slide = impeller_shaft_diameter + 2*sliding_tolerance;
 
@@ -683,40 +694,112 @@ module holes_for_ports()
 
 }
 
-module magnetic_columns(height, anchor=BOTTOM, orient=DOWN, spin=90)
+module half_prismic_cylinder(top_size, height, anchor, spin, orient, bottom_ratio = 1/2)
 {
-    // Add columns for the magnet traps on the outside of mold cavity
-    for (column_index = [0:number_magnetic_columns-1])
+    attachable(anchor = anchor, spin = spin, orient = orient,
+    size = [top_size * 1.5, top_size, height],
+    size2 = [top_size, bottom_ratio * top_size])
     {
-        zrot(column_index*360/number_magnetic_columns)
-        left(jar_od/2+0.75*magnetic_column_d)
+        union()
+        {
+            cylinder(h = height, d1 = top_size * bottom_ratio, d2 = top_size, anchor = CENTER, spin =
+            spin,
+            orient = UP);
+
+            right_half()
+            prismoid(size2 = [top_size * 1.5, top_size],
+            size1 = [top_size * 1.5, top_size * bottom_ratio],
+            h = height, anchor = CENTER, spin = spin, orient = UP);
+        }
+        children();
+    }
+}
+
+// Add columns for the magnet traps on the outside of mold cavity
+module magnetic_columns(number_columns, height, anchor, spin, orient)
+{
+    half_prismic_cylinder_top_size = magnetic_column_d * 1.5;
+    for (column_index = [0:number_columns-1])
+    {
+        zrot(column_index * 360 / number_columns)
+        left(jar_od / 2 + 0.75 * half_prismic_cylinder_top_size)
         diff()
         {
-            default_tag("remove")
-            attachable(anchor = anchor, orient = orient, spin=spin)
+            half_prismic_cylinder(half_prismic_cylinder_top_size, height, anchor, spin, orient)
             {
-                union()
-                {
-                    right_half()
-                    prismoid(size1 = [magnetic_column_d * 1.5, magnetic_column_d],
-                    size2 = [magnetic_column_d * 1.5, magnetic_column_d / 2],
-                    h = height, anchor = anchor, orient = orient, spin=spin);
-                    cylinder(h = height, d2 = magnetic_column_d / 2, d1 = magnetic_column_d, anchor = anchor, orient =
-                    orient, spin=spin);
-                }
-                children();
+                down(4 * layer_height)
+                zrot(90)
+                attach(TOP)
+                tag("remove")
+                circular_magnet_trap_side(struct_val(mold_magnet_dims, "diameter"),
+                struct_val(mold_magnet_dims, "thickness"),
+                poke_len = half_prismic_cylinder_top_size + difference_tolerance, poke_diam = 1, anchor = TOP);
             }
-            
-//            position(TOP)
-            zrot(90)
-            down(2*layer_height+struct_val(mold_magnet_dims, "thickness"))
-            circular_magnet_trap_side(struct_val(mold_magnet_dims, "diameter"), 
-                                      struct_val(mold_magnet_dims, "thickness"), 
-                                      poke_len = magnetic_column_d/2 + difference_tolerance, poke_diam=1, anchor = TOP);
+
         }
     }
-
 }
+
+// Add columns for the screws and nut traps on the outside of mold cavity
+module screw_together_columns(number_columns, height, anchor, spin, orient)
+{
+    nut_info = nut_info(mold_screw);
+    nut_width = struct_val(nut_info, "width");
+    nut_thickness = struct_val(nut_info, "thickness");
+
+    half_prismic_cylinder_top_size = nut_width * 1.5;
+    for (column_index = [0:number_columns-1])
+    {
+        zrot(column_index * 360 / number_columns)
+        left(jar_od / 2 + 0.75 * half_prismic_cylinder_top_size)
+        union()
+        {
+            diff()
+            {
+                half_prismic_cylinder(half_prismic_cylinder_top_size, height, anchor, spin, orient, bottom_ratio = 1.)
+                {
+                    if (anchor == TOP)
+                    {
+                        // The top lid mold needs a nut trap
+                        down(height - nut_width)
+                        zrot(90)
+                        xrot(180)
+                        attach(BOTTOM)
+                        tag("remove")
+                        screw_hole(mold_screw, length = 2 * height, $slop = screw_hole_slop)
+                        nut_trap_side(trap_width = half_prismic_cylinder_top_size,
+                        poke_len = half_prismic_cylinder_top_size + difference_tolerance, poke_diam = 1,
+                        anchor = TOP);
+
+                    }
+                    else {
+                        // The bottom lid mold needs a screw hole.  
+                        // When this mold is in place the screw head will be at the top.
+                        down(difference_tolerance)
+                        attach(TOP)
+                        tag("remove")
+                        screw_hole(mold_screw, length = 2 * height + 2 * difference_tolerance, $slop = screw_hole_slop);
+                    }
+                }
+                
+                // Add fillets between the outer mold cylinder and the columns
+                up(lid_mold_height)
+                union()
+                {
+                    right(0.75 * half_prismic_cylinder_top_size)
+                    back(half_prismic_cylinder_top_size/2)
+                    fillet(lid_mold_height, r = 0.75 * half_prismic_cylinder_top_size, ang = 90, spin=90, anchor=TOP);
+                    
+                    right(0.75 * half_prismic_cylinder_top_size)
+                    fwd(half_prismic_cylinder_top_size/2)
+                    fillet(lid_mold_height, r = 0.75 * half_prismic_cylinder_top_size, ang = 90, spin=180, anchor=TOP);
+                }
+            }
+            
+        }
+    }
+}
+
 module lid_top_mold()
 {
 
@@ -735,31 +818,12 @@ module lid_top_mold()
             up(difference_tolerance)
             cylinder(h = lid_mold_height, d=jar_od+mold_wall_thickness, anchor = BOTTOM);
 
-            // Add columns for the magnet traps on the outside of mold cavity
-//            magnetic_columns(lid_mold_height);
-            // Add columns for the magnet traps on the outside of mold cavity
-            for (column_index = [0:number_magnetic_columns-1])
-            {
-                zrot(column_index*360/number_magnetic_columns)
-                left(jar_od/2+0.75*magnetic_column_d)
-                difference()
-                {
-                    union()
-                    {
-                        right_half()
-                        prismoid(size1=[magnetic_column_d*1.5, magnetic_column_d], 
-                                 size2=[magnetic_column_d*1.5, magnetic_column_d/2], 
-                                 h=lid_mold_height, anchor = BOTTOM);
-                        cylinder(h = lid_mold_height, d2 = magnetic_column_d/2, d1 = magnetic_column_d, anchor = BOTTOM);
-                    }
-                    
-                    zrot(90)
-                    up(2*layer_height+struct_val(mold_magnet_dims, "thickness"))
-                    circular_magnet_trap_side(struct_val(mold_magnet_dims, "diameter"), 
-                                              struct_val(mold_magnet_dims, "thickness"), 
-                                              poke_len = magnetic_column_d/2 + difference_tolerance, poke_diam=1, anchor = TOP);
-                }
-            }
+            if (use_screws_to_hold_together_mold_halves)
+                // Add columns for the screws nut traps on the outside of mold cavity
+                screw_together_columns(number_mold_joining_columns, lid_mold_height, anchor = TOP, spin = 180, orient = DOWN);
+            else
+                // Add columns for the magnet traps on the outside of mold cavity
+                magnetic_columns(number_mold_joining_columns, lid_mold_height, anchor = TOP, spin = 180, orient = DOWN);
             
         }
         
@@ -826,43 +890,19 @@ module lid_bottom_mold()
 //    up(taper_height)
 //    %lid_top_mold();
 
-    lid_bottom_mold_height = taper_height;
-    magnetic_column_height = lid_bottom_mold_height;
+    lid_bottom_mold_height = taper_height-2*difference_tolerance;
     difference()
     {
         union()
         {
-            cylinder(h = lid_bottom_mold_height-2*difference_tolerance, d = jar_od+mold_wall_thickness, anchor = BOTTOM);
+            cylinder(h = lid_bottom_mold_height, d = jar_od+mold_wall_thickness, anchor = BOTTOM);
 
-            // Add columns for the magnet traps on the outside of mold cavity
-//            magnetic_columns(lid_bottom_mold_height, orient=DOWN);
-
-            for (column_index = [0:number_magnetic_columns-1])
-            {
-                zrot(column_index*360/number_magnetic_columns)
-                left(jar_od/2+0.75*magnetic_column_d)
-                up(magnetic_column_height)
-                difference()
-                {
-                    union()
-                    {
-                        right_half()
-                        cuboid([magnetic_column_d*1.5, magnetic_column_d, magnetic_column_height], anchor = TOP);
-                        cylinder(h = magnetic_column_height, d = magnetic_column_d, anchor = TOP);
-                    }
-                    
-                    zrot(90)
-                    down(2*layer_height)
-                    circular_magnet_trap_side(struct_val(mold_magnet_dims, "diameter"), 
-                                              struct_val(mold_magnet_dims, "thickness"), 
-                                              poke_len = magnetic_column_d/2 + difference_tolerance, poke_diam=1, anchor = TOP);
-//                    position(TOP)
-//                    top_half()
-//                    onion(d = struct_val(mold_magnet_dims, "diameter"), cap_h = struct_val(mold_magnet_dims, "diameter")/2.5);
-
-                }
-            }
-
+            if (use_screws_to_hold_together_mold_halves)
+                // Add columns for the screws nut traps on the outside of mold cavity
+                screw_together_columns(number_mold_joining_columns, lid_bottom_mold_height, anchor = BOTTOM, spin=0, orient=UP);
+            else
+                // Add columns for the magnet traps on the outside of mold cavity
+                magnetic_columns(number_mold_joining_columns, lid_bottom_mold_height, anchor=BOTTOM, spin=0, orient=UP);
         }
 
         down(difference_tolerance)
@@ -1181,9 +1221,11 @@ else if (part_to_show == "jar lid from mold")
     back_half(s = show_cross_section ? 200 : 0)
     union()
     {
-        lid_bottom_from_mold(true);
-        up(taper_height)
-        lid_top_from_mold(true);
+        up(show_molded_part ? 0: 2*taper_height)
+        xrot(show_molded_part ? 0: 180)
+        lid_bottom_from_mold(show_molded_part);
+        up(show_molded_part ? taper_height : 0)
+        lid_top_from_mold(show_molded_part);
     }       
 
 }
@@ -1215,12 +1257,9 @@ else if (part_to_show == "6 mm port mold")
 }
 else if (part_to_show == "plate drilling template")
 {
-    //zflip()
-//    test_insert();
     projection(cut = true) 
     down(support_plate_thickness/2)
     support_plate(true);
-
 }
 else if (part_to_show == "test")
 {
