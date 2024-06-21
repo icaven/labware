@@ -52,26 +52,21 @@ use <magnet_trap.scad>
 /* [Viewing options] */
 
 // Show a part, or the assembled parts in position
-part_to_show = "jar lid from mold";// ["jar lid from mold","lid_top_mold","lid_bottom_mold","plate drilling template","jar lid cutting jig","18 mm port mold","10 mm port mold","6 mm port mold","test"]
+part_to_show = "jar lid from mold";// ["jar lid from mold","lid top mold","lid bottom mold","posts for solid bottom design","plate drilling template","jar lid cutting jig","18 mm port mold","14 mm port mold","10 mm port mold","test post hole fit","test jar insert"]
 
 // Show the embedded support_plate
 show_support_plate = false;
 // Thickness of embedded support plate (accounting for convexity)
 support_plate_thickness = 1.5; // 0.1
-// Reveal the embedded support plate
-show_cross_section = false;
+// Show a cross section
+show_cross_section_view = "none"; // ["none", "back", "left", "front", "right", "back+left", "front+right"]
+
 // Reveal the zone around a port that nothing else should intrude into
 show_port_zones = false;
 // for the mold parts
 show_molded_part = false;
 // Hollow out beneath the support support plate
-hollow_out_stopper = true;
-
-/* [Jar lid cutting jig specifications] */
-
-jar_nominal_dia_and_type_number = "110-400";
-// The size of the screw for attaching the lid to the center bar of the lid cutting jig
-screw_for_holding_lid = "M3";  // ["6-32", "M4", "M3"]
+hollow_out_stopper = false;
 
 /* [Port specifications] */
 // Number of large ports (the number of each of the smaller ports will be half of this)
@@ -79,14 +74,13 @@ number_ports = 6;
 
 // Diameter of the 3 sizes of ports
 port_d = 18;
-small_port_d = 10;
-mini_port_d = 6;
+small_port_d = 14;
+mini_port_d = 10;
+use_snap_pins_to_connect_posts_for_ports = false;
 
 port_height = 6;
-// Width of the ledge inside the large ports, to allow an insert to narrow the opening
-port_inner_support_width = 0; // 0.1
-// Thickness of the walls of the ports
-threaded_post_wall_thickness = 2.8; // 0.1
+// Thickness of the walls of the bearing pocket
+bearing_pocket_wall_thickness = 2.8; // 0.1
 // Add support plate posts if the support plate will be included during the casting of the silicone
 add_support_plate_posts = false;
 
@@ -94,21 +88,29 @@ add_support_plate_posts = false;
 bearing_to_use = "608ZZ"; // ["608ZZ", "R4ZZ", "635ZZ", "685ZZ"]
 
 /* [Mold specifications] */
-// Printer layer height (for the Prusa Mini)
+// Printer layer height
 layer_height = 0.2; // [0.05, 0.07, 0.1, 0.15, 0.2, 0.25]
+//Printer nozzle diameter
+nozzle_diameter = 0.4;
 
-// Minimum thickness of the mold walls in layer_height units
-mold_wall_thickness_num_layers = 10;
 // Angle from vertical to make the extraction from the mold easier
 mold_draft_angle = 1;
 
+// Screws or magnets to hold the halves together
 use_screws_to_hold_together_mold_halves = true;
 mold_screw = "M3";  // ["6-32", "M4", "M3"]
 mold_screw_head = "pan"; // ["pan", "socket"]
-number_mold_joining_columns = 3; // [3:6]
+number_mold_joining_columns = 6; // [3:6]
+
+/* [Jar lid cutting jig specifications] */
+
+jar_nominal_dia_and_type_number = "110-400";
+// The size of the screw for attaching the lid to the center bar of the lid cutting jig
+screw_for_holding_lid = "M3";  // ["6-32", "M4", "M3"]
 
 /* [Other specifications] */
 impeller_shaft_diameter = 6.35;
+impeller_shaft_clearance_width = 1.;
 sliding_tolerance = 0.1;
 
 // Thickness of the part that rests on the jar rim
@@ -124,13 +126,27 @@ module __end_of_customizer_variables() {}
 $fn = 200;
 $fa = 1;
 $fs = 1;
+difference_tolerance = 0.01;
 screw_hole_slop = 0.05;
 
-mold_wall_thickness = mold_wall_thickness_num_layers * layer_height;
+cut_plane_normal =   show_cross_section_view == "back" ? BACK : 
+                     show_cross_section_view == "left" ? LEFT :
+                     show_cross_section_view == "front" ? FRONT :
+                     show_cross_section_view == "right" ? RIGHT :
+                     show_cross_section_view == "back+left" ? BACK+LEFT :
+                     show_cross_section_view == "front+right" ? FRONT+RIGHT :
+                     BACK;
+
+function mm_to_inch(x) = x / 25.4;
+function inch_to_mm(x) = 25.4 * x;
+
+// Obsolete specification - to be removed
+threaded_post_wall_thickness = 2.8; // 0.1
+
+mold_wall_thickness = 2.0;
 
 // Subset from BOSL2 and augmented for additional bearings
 // Update this list for those available from local suppliers
-function inch_to_mm(x) = 25.4 * x;
 selected_bearings_by_trade_size = [
                                   // trade_size, ID,     OD,      width,  shielded, flanged, fd, fw 
                                   ["635ZZ", 5, 19, 6, true, false, 0, 0],
@@ -150,23 +166,22 @@ bearing_od = bearing_info[2];
 // The width of the bearing
 bearing_width = bearing_info[3];
 
-// Use to drill holes in the support plate manually using commonly drill bit sizes
-support_plate_shaft_hole_d = 25.4 * 3 / 8;
-support_plate_port_hole_d = 25.4 * 5 / 8;
-support_plate_small_port_hole_d = 25.4 * 1 / 2;
-support_plate_mini_port_hole_d = 25.4 * 3 / 8;
+// Bearing inner diameter oversize (to be outside of the rotating center)
+// Make it half-way between the inner and outer diameters
+shaft_clearance_d = (bearing_od - bearing_id)/2 + bearing_id;
+
+// Use to drill holes in the support plate manually using drill bit sizes in increments of 1/8 inch
+support_plate_shaft_hole_d = inch_to_mm(quantup(mm_to_inch(shaft_clearance_d), 1/8));
+support_plate_port_hole_d = inch_to_mm(quantup(mm_to_inch(port_d), 1/8));
+support_plate_small_port_hole_d = inch_to_mm(quantup(mm_to_inch(small_port_d), 1/8));
+support_plate_mini_port_hole_d = inch_to_mm(quantup(mm_to_inch(mini_port_d), 1/8));
 
 /**
   Dimensions of the jar and lid
  */
 jar_nominal_dia = parse_int(str_split(jar_nominal_dia_and_type_number, "-")[0]);
 jar_type_number = parse_int(str_split(jar_nominal_dia_and_type_number, "-")[1]);
-//echo("jar_nominal_dia = ", jar_nominal_dia);
-//echo("jar_type_number = ", jar_type_number);
 
-//jar_od = sp_diameter(jar_nominal_dia, jar_type_number);
-
-function inch_to_mm(x) = 25.4 * x;
 selected_jars_by_trade_size = [
                               // trade_size, T,          E,                 H,              I_min, R_max, thread_r, S, number_turns, TPI, type, 
                               [110, inch_to_mm(4.307), inch_to_mm(4.187), inch_to_mm(0.582), inch_to_mm(3.737),
@@ -183,6 +198,7 @@ jar_od = jar_info[1];
 // The height of the lid
 jar_lid_height = jar_info[3];
 taper_height = jar_lid_height;      // Make the height of the tapered head plate the same as the lid height
+lid_bottom_mold_height = taper_height - 2 * difference_tolerance;
 
 
 // The thickness of the glass jar at the rim
@@ -249,7 +265,6 @@ stopper_taper_width = 4;
 trapezoidal_thread_angle = 45;
 mounting_plate_thread_pitch = 3;
 mounting_plate_thread_depth = mounting_plate_thread_pitch / 2;
-difference_tolerance = 0.01;
 
 gasket_thickness_qup = quantup(gasket_thickness, layer_height);
 thickness_above_rim_qup = quantup(thickness_above_rim, layer_height);
@@ -257,7 +272,12 @@ stopper_thickness_qup = quantup(stopper_thickness, layer_height);
 bearing_width_qup = quantup(bearing_width, layer_height);
 lid_mold_height = thickness_above_rim_qup + mold_wall_thickness + bearing_width_qup + difference_tolerance;
 magnetic_column_d = struct_val(mold_magnet_dims, "diameter") + mold_wall_thickness;
-impeller_shaft_d_slide = impeller_shaft_diameter + 2 * sliding_tolerance;
+height_of_post_above_surface_inside_top_mold = 1;
+post_hole_shortening = 1;
+post_height_in_top_lid = (use_snap_pins_to_connect_posts_for_ports || hollow_out_stopper ? lid_mold_height : 
+                bearing_width+mold_wall_thickness+height_of_post_above_surface_inside_top_mold) - post_hole_shortening;
+height_of_post_grip = 5;    // The width of the region to grip the posts with when unscrewing
+height_of_posts_when_using_solid_bottom = taper_height + height_of_post_grip + 1 + (lid_mold_height - post_height_in_top_lid);
 
 // Variables used to control the hollowing out of the base inside the tapered walls.  A small angle is used to 
 // allow the part to be extracted from the mold more easily.
@@ -275,6 +295,23 @@ exterior_dome_diameter_base = diameter_outside_hollow_of_tapered_base - 2 * stop
 exterior_dome_diameter_top = diameter_outside_hollow_of_tapered_base_with_draft - 2 * stopper_taper_width;
 interior_dome_diameter_base = diameter_inside_hollow_of_tapered_base - 2 * stopper_taper_width;
 interior_dome_diameter_top = diameter_inside_hollow_of_tapered_base_with_draft - 2 * stopper_taper_width;
+
+// Specifications for the connector for the posts that make the holes in the lid
+// For the motor shaft hole
+post_specs_shaft = use_snap_pins_to_connect_posts_for_ports ?
+    struct_set([], ["type", "pin", "size", "standard", "length", 10.8, "diameter", 7]) : 
+        struct_set([], ["type", "screw", "size", "M6", "length", 5, "head", "pan", "drive", "phillips", 
+                       "ring_d_inc", nozzle_diameter]);
+// For the smaller sizes of holes
+post_specs_small = use_snap_pins_to_connect_posts_for_ports ?
+    struct_set([], ["type", "pin", "size", "medium", "length", 8, "diameter", 4.6]) : 
+        struct_set([], ["type", "screw", "size", "M4", "length", 5, "head", "pan", "drive", "phillips",
+                       "ring_d_inc", nozzle_diameter]);
+// For the larger sizes of holes
+post_specs_large = use_snap_pins_to_connect_posts_for_ports ?
+    struct_set([], ["type", "pin", "size", "standard", "length", 10.8, "diameter", 7]) : 
+        struct_set([], ["type", "screw", "size", "M6", "length", 5, "head", "pan", "drive", "phillips",
+                       "ring_d_inc", nozzle_diameter]);
 
 
 module test_insert()
@@ -325,44 +362,6 @@ module port_zone(port_od, post_increase_d)
     #cylinder(h = port_height + 2 * difference_tolerance, d = port_od + post_increase_d, anchor = BOTTOM);
 }
 
-// No longer used
-//module threaded_post_for_port(port_od, post_increase_d, hole_size_reduction)
-//{
-//    diameter_in_stopper = port_od + post_increase_d;
-//    
-//    // For testing, show the size of the hole in the support plate
-//    //     #cylinder(h=port_height+2*difference_tolerance, d=25.4*5/8, anchor = BOTTOM);
-//    
-//    // For testing, show the extent of the zone around the port
-//    //      port_zone(port_od, post_increase_d);
-//    difference()
-//    {
-//        trapezoidal_threaded_rod(d = port_od + 2 * threaded_post_wall_thickness, height = port_height,
-//                                pitch = mounting_plate_thread_pitch, thread_depth = mounting_plate_thread_depth,
-//                                thread_angle = trapezoidal_thread_angle, internal = false, starts = 1,
-//                                blunt_start = true, anchor = BOTTOM);
-//        
-//        /*
-//                position(BOTTOM)
-//                #trapezoidal_threaded_rod(d = diameter_in_stopper, height = support_plate_surround_thickness/2 - 0.5,
-//                pitch = mounting_plate_thread_pitch/2, thread_depth = mounting_plate_thread_depth,
-//                thread_angle = trapezoidal_thread_angle, internal = false, starts = 1,
-//                blunt_start = true, anchor = TOP);
-//        */
-//        
-//        down(difference_tolerance)
-//        cylinder(h = port_height + 2 * difference_tolerance, d = port_od, anchor = BOTTOM);
-//        
-//        
-//        /*
-//                position(BOTTOM)
-//                up(difference_tolerance)
-//                #cylinder(h = support_plate_surround_thickness / 2 + 2 * difference_tolerance,
-//                d = port_od - 2 * hole_size_reduction, anchor = TOP);
-//        */
-//    }
-//}
-
 // This module is adapted from npt_threaded_rod() in threading.scad in the BOSL2 library
 module tapered_threaded_part(l, d, pitch, left_handed = false, bevel, bevel1, bevel2, lead_in, lead_in1, lead_in2,
     end_len, end_len1, end_len2, hollow = false, internal = false, anchor, spin, orient)
@@ -410,222 +409,19 @@ module tapered_threaded_part(l, d, pitch, left_handed = false, bevel, bevel1, be
     }
 }
 
-// The threaded post is no longer used
-//module mold_for_threaded_post_for_port(port_od, post_increase_d, hole_size_reduction, snap_pin_specs, partition_specs)
-//{
-//    nozzle_diameter = 0.4;
-//    spread_of_partition_halves = 10;
-//    cutsize = 1;
-//    mold_wall_thickness = 1;
-//    edge_thickness = threaded_post_wall_thickness + mold_wall_thickness;
-//    inner_chamfer_height = mounting_plate_thread_pitch;
-//    snap_pin_size = struct_val(snap_pin_specs, "size");
-//    snap_pin_length = struct_val(snap_pin_specs, "length");
-//    mold_od = port_od + 2 * inner_chamfer_height + edge_thickness;
-//    mold_height = port_height + inner_chamfer_height + 2 * mold_wall_thickness + snap_pin_length;
-//    
-//    retaining_ledge_thickness = 3 * nozzle_diameter;
-//    retaining_nut_thickness = 4;
-//    retaining_nut_side_thickness = 4;
-//    retaining_nut_id = mold_od + 2 * retaining_nut_side_thickness;
-//    retaining_nut_od = retaining_nut_id + 4;
-//    retaining_nut_thread_pitch = 1;
-//    
-//    
-//    module mold()
-//    {
-//        intersection()
-//        {
-//            union()
-//            {
-//                difference()
-//                {
-//                    intersection()
-//                    {
-//                        union()
-//                        {
-//                            tube(h = mold_height, od = mold_od,
-//                                id = port_od + difference_tolerance, anchor = BOTTOM);
-//                            
-//                            // Add the cap
-//                            up(mold_height)
-//                            cylinder(h = mold_wall_thickness, d = mold_od, anchor = TOP);
-//                        }
-//                        
-//                        tapered_threaded_part(l = mold_height, d = mold_od, pitch = 1,
-//                                             anchor = BOTTOM, orient = UP);
-//                    }
-//                    threaded_post_for_port(port_od, post_increase_d, hole_size_reduction);
-//                }
-//                
-//                // Add the snap pin for the internal cylinder
-//                up(mold_height - mold_wall_thickness)
-//                difference()
-//                {
-//                    cylinder(r = port_od / 2, h = snap_pin_length, anchor = TOP);
-//                    snap_pin_socket(size = snap_pin_size, pointed = false, anchor = TOP, orient = UP);
-//                }
-//                
-//                // Add a ledge that will allow the post to be retained on the head plate during molding using the
-//                // retaining nut
-//                tube(h = retaining_ledge_thickness, od = retaining_nut_od, id = mold_od - 2 * mold_wall_thickness,
-//                    anchor = BOTTOM);
-//            }
-//            
-//            // Flatten two opposite sides, so that when the mold is partitioned, the flat side can lie on the print bed
-//            cuboid([retaining_nut_od, mold_od - 4 * mold_wall_thickness, mold_height],
-//                  anchor = BOTTOM);
-//        }
-//        
-//    }
-//    
-//    module post_docking_space()
-//    {
-//        difference()
-//        {
-//            threaded_rod(d = retaining_nut_id, height = retaining_nut_thickness, pitch = retaining_nut_thread_pitch,
-//                        end_len1 = retaining_ledge_thickness, blunt_start = true, bevel2 = false,
-//                        anchor = BOTTOM);
-//            
-//            // Flatten two opposite sides, so that when the mold is partitioned, the flat side can lie on the print bed
-//            down(difference_tolerance)
-//            cuboid([retaining_nut_od, mold_od - 4 * mold_wall_thickness + 2 * sliding_tolerance, retaining_nut_thickness
-//                + 2 * difference_tolerance],
-//                  anchor = BOTTOM);
-//        }
-//        
-//        right_half()
-//        intersection()
-//        {
-//            tube(h = retaining_ledge_thickness, id = retaining_nut_od, od = retaining_nut_od + 6,
-//                anchor = BOTTOM);
-//            down(difference_tolerance)
-//            cuboid([retaining_nut_od + 6, mold_od - 4 * mold_wall_thickness, retaining_nut_thickness + 2 *
-//                difference_tolerance],
-//                  anchor = BOTTOM);
-//            
-//        }
-//        
-//        
-//    }
-//    
-//    module retaining_nut()
-//    {
-//        recolor("blue")
-//        zrot(180)
-//        threaded_nut(nutwidth = retaining_nut_od, id = retaining_nut_id, h = retaining_nut_thickness,
-//                    pitch = retaining_nut_thread_pitch, bevel = false, ibevel = false, anchor = BOTTOM,
-//                    $slop = slop);
-//    }
-//    
-//    module internal_post_hollow_mask()
-//    {
-//        cylinder(h = stopper_thickness + port_height, d = port_od, anchor = BOTTOM)
-//        down(snap_pin_length)
-//        position(TOP)
-//        snap_pin(snap_pin_size, l = snap_pin_length, snap = 0.125 * port_od / 2, anchor = BOTTOM, orient = UP, pointed =
-//        false
-//                , thickness = 1);
-//    }
-//    
-//    module tapered_nut_for_mold()
-//    {
-//        up(mold_height + mold_wall_thickness)
-//        xrot(180)
-//        difference()
-//        {
-//            tex = texture("pyramids_vnf", $fn = 16);
-//            linear_sweep(
-//                        circle(d = mold_od + 2 * mold_wall_thickness), texture = tex, h = mold_height +
-//                mold_wall_thickness,
-//                        tex_size = [4, 4], style = "concave", anchor = BOTTOM
-//                        );
-//            
-//            tapered_threaded_part(l = mold_height, d = mold_od, pitch = 1, internal = true, hollow = undef,
-//                                 anchor = TOP, orient = DOWN);
-//            
-//        }
-//    }
-//    
-//    module partition_mold(partition_specs)
-//    {
-//        cutsize = struct_val(partition_specs, "cutsize");
-//        gap = struct_val(partition_specs, "gap");
-//        cutpath = struct_val(partition_specs, "cutpath");
-//        
-//        //        %partition_cut_mask(l=port_od*4, h=mold_height*2, cutsize=cutsize, gap=gap, cutpath=cutpath, anchor=CENTER);
-//        partition([port_od * 6, port_od, mold_height * 2], cutsize = cutsize, gap = gap, cutpath = cutpath, spread =
-//        spread_of_partition_halves)
-//        mold();
-//        
-//    }
-//    
-//    module part_a()
-//    {
-//        xrot(180)
-//        back(mold_height / 2)
-//        zrot(180)
-//        back(mold_height / 2)
-//        xrot(90)
-//        fwd(spread_of_partition_halves / 2 + mold_od / 2 - mold_wall_thickness)
-//        back_half()
-//        partition_mold(partition_specs);
-//        
-//    }
-//    module part_b()
-//    {
-//        xrot(180)
-//        fwd(mold_height / 2)
-//        zrot(180)
-//        fwd(mold_height / 2)
-//        xrot(-90)
-//        back(spread_of_partition_halves / 2 + mold_od / 2 - mold_wall_thickness)
-//        front_half()
-//        partition_mold(partition_specs);
-//        
-//    }
-//    
-//    // Show all the parts to be printed
-//    distribution_spacing = [mold_od, mold_od, mold_od, port_od, retaining_nut_od];
-//    distribute(spacing = 10, sizes = distribution_spacing, dir = RIGHT)
-//    {
-//        recolor("green")
-//        part_a();
-//        fwd(mold_height)
-//        part_b();
-//        tapered_nut_for_mold();
-//        internal_post_hollow_mask();
-//        retaining_nut();
-//        
-//    }
-//    //        partition_mold(partition_specs);
-//    //    mold();
-//    /*
-//        zrot(90)
-//        {
-//            mold();
-//            recolor("orange")
-//            post_docking_space();
-//            up(retaining_ledge_thickness)
-//            retaining_nut();
-//        }
-//    */
-//}
-
 // Create the parts for the mold for a bung for a port 
-module mold_for_bung_for_port(port_od, partition_specs)
+module mold_for_bung_for_port(port_od)
 {
-    nozzle_diameter = 0.4;
     spread_of_partition_halves = 10;
     cutsize = 1;
     bung_od = port_od - 2 * sliding_tolerance;
     cap_od = port_od + 2;
     cap_thickness = 2;
-    pull_tab_size = port_od / 6;
+    pull_tab_size = port_od / 3;
     mold_wall_thickness = 2;
     mold_od = cap_od + 2 * mold_wall_thickness;
     bung_height = thickness_above_rim_qup + cap_thickness + 2 * pull_tab_size;
-    dovetail_width = mold_od / 3.5;
+    dovetail_width = mold_od / 2.5;
     dovetail_length = mold_od / 3;
     dovetail_height = mold_od/6;
     dovetail_angle = 0;  // Not a dovetail, using straight sides
@@ -644,7 +440,7 @@ module mold_for_bung_for_port(port_od, partition_specs)
                 
                 // Add a resistance ring in the center of the bung height
                 attach(CENTER)
-                torus(id = port_od - 3, od = port_od, anchor = CENTER);
+                torus(id = port_od - 2, od = port_od + 1, anchor = CENTER);
                 
                 // Add the cap
                 down(difference_tolerance)
@@ -680,13 +476,13 @@ module mold_for_bung_for_port(port_od, partition_specs)
                     right(pull_tab_size)
                     zrot(-90)
                     yrot(-90)
-                    fillet(pull_tab_size, r = pull_tab_size / 2, ang = 90, spin = 0, anchor = CENTER);
+                    fillet(pull_tab_size, r = pull_tab_size / 2.5, ang = 90, spin = 0, anchor = CENTER);
                     
                     down(pull_tab_size / 2)
                     left(pull_tab_size)
                     zrot(90)
                     yrot(-90)
-                    fillet(pull_tab_size, r = pull_tab_size / 2, ang = 90, spin = 0, anchor = CENTER);
+                    fillet(pull_tab_size, r = pull_tab_size / 2.5, ang = 90, spin = 0, anchor = CENTER);
                     
                 }
             }
@@ -755,15 +551,10 @@ module mold_for_bung_for_port(port_od, partition_specs)
     }
     
     // This will partition of the mold into two halves
-    module partition_mold(partition_specs)
+    module partition_mold()
     {
-        cutsize = struct_val(partition_specs, "cutsize");
-        gap = struct_val(partition_specs, "gap");
-        cutpath = struct_val(partition_specs, "cutpath");
-        
-        //        %partition_cut_mask(l=port_od*4, h=mold_height*3, cutsize=cutsize, gap=gap, cutpath=cutpath, anchor=CENTER);
-        partition([port_od * 6, port_od, mold_height * 3], cutsize = cutsize, gap = gap, cutpath = cutpath,
-                 spread = spread_of_partition_halves)
+//      %partition_cut_mask(l=port_od*4, h=mold_height*3, cutpath="flat", anchor=CENTER);
+        partition([port_od * 6, port_od, mold_height * 3], cutpath = "flat", spread = spread_of_partition_halves)
         mold();
         
     }
@@ -778,7 +569,7 @@ module mold_for_bung_for_port(port_od, partition_specs)
             // Add a dovetail to lock the two halves
             fwd(spread_of_partition_halves / 2)
             back_half()
-            partition_mold(partition_specs);
+            partition_mold();
             
             up(mold_height-difference_tolerance)
             back(dovetail_length)
@@ -806,7 +597,7 @@ module mold_for_bung_for_port(port_od, partition_specs)
             xrot(-90)
             back(spread_of_partition_halves / 2)
             front_half()
-            partition_mold(partition_specs);
+            partition_mold();
 
             fwd(difference_tolerance)
             zrot(180)
@@ -815,7 +606,7 @@ module mold_for_bung_for_port(port_od, partition_specs)
             {
                 diff()
                 {
-                    cuboid([dovetail_length * 2, dovetail_width * 0.75, dovetail_height], anchor = BOTTOM + FRONT)
+                    cuboid([dovetail_length * 2, dovetail_width * 0.5, dovetail_height], anchor = BOTTOM + FRONT)
                     position(BACK + BOTTOM)
                     chamfer_edge_mask(l = dovetail_length * 2, chamfer = dovetail_height, orient = RIGHT,
                                      anchor = RIGHT);
@@ -905,7 +696,7 @@ module mold_for_bung_for_port(port_od, partition_specs)
     
     // These are for testing the stages
 //    tapered_nut_for_mold();
-//    partition_mold(partition_specs);
+//    partition_mold();
 //    part_a();
 //    show_mold_part_a_with_nut();
 //    show_mold_part_b_with_nut();
@@ -919,7 +710,7 @@ module port_locator(port_index, port_od, phase_angle)
 {
     angle_of_port = port_index * 360 / number_ports + phase_angle;
     zrot(angle_of_port)
-    fwd(support_plate_or - port_od / 2 - threaded_post_wall_thickness)
+    fwd(support_plate_or - port_od / 2 - bearing_pocket_wall_thickness)
     children();
 }
 module support_plate(show_center = false)
@@ -998,20 +789,19 @@ module support_plate(show_center = false)
 
 module support_plate_post()
 {
-    up(thickness_above_rim)
-    {
-        cylinder(h = thickness_above_rim, d = support_plate_post_d, anchor = TOP)
-        
-        recolor("blue")
-        position(BOTTOM)
-        up(thickness_below_support_plate + support_plate_thickness - support_plate_post_ridge_thickness / 2)
-        torus(od = support_plate_post_d + support_plate_post_ridge_thickness, id = support_plate_post_d - 0.5 *
-            support_plate_post_ridge_thickness, anchor = BOTTOM);
-        
-    }
+    
+    up(support_plate_thickness)
+    cylinder(h = lid_mold_height - thickness_below_support_plate, d = support_plate_post_d, anchor = BOTTOM)
+    
+    recolor("blue")
+    down(support_plate_thickness - support_plate_post_ridge_thickness / 2)
+    position(TOP)
+    torus(od = support_plate_post_d + support_plate_post_ridge_thickness, id = support_plate_post_d - 0.5 *
+        support_plate_post_ridge_thickness, anchor = BOTTOM);
+    
 }
 
-module holes_for_ports(anchor=BOTTOM)
+module holes_for_ports(h, anchor, in_lid=true, cylinder_only)
 {
     post_increase_d = 0;
     
@@ -1019,9 +809,7 @@ module holes_for_ports(anchor=BOTTOM)
     for (port_index = [0:number_ports - 1])
     {
         port_locator(port_index, port_d, 0)
-        down(difference_tolerance)
-        cylinder(h = stopper_thickness + port_height + 2 * difference_tolerance,
-                d = port_d - 2 * port_inner_support_width, anchor = anchor)
+        post_for_port_hole(h, port_d, post_specs_large, anchor, in_lid, cylinder_only)
         
         position(-anchor)
         port_zone(port_d, post_increase_d);
@@ -1031,10 +819,8 @@ module holes_for_ports(anchor=BOTTOM)
     for (port_index = [0:2:number_ports - 1])
     {
         port_locator(port_index, small_port_d, phase_angle_small)
-        down(difference_tolerance)
-        cylinder(h = stopper_thickness + port_height + 2 * difference_tolerance,
-                d = small_port_d, anchor = anchor)
-        
+        post_for_port_hole(h, small_port_d, post_specs_large, anchor, in_lid, cylinder_only)
+
         position(-anchor)
         port_zone(small_port_d, post_increase_d);
     }
@@ -1042,10 +828,8 @@ module holes_for_ports(anchor=BOTTOM)
     for (port_index = [1:2:number_ports - 1])
     {
         port_locator(port_index, mini_port_d, phase_angle_mini)
-        down(difference_tolerance)
-        cylinder(h = stopper_thickness + port_height + 2 * difference_tolerance,
-                d = mini_port_d, anchor = anchor)
-        
+        post_for_port_hole(h, mini_port_d, post_specs_small, anchor, in_lid, cylinder_only)
+
         position(-anchor)
         port_zone(mini_port_d, post_increase_d);
     }
@@ -1083,7 +867,7 @@ module magnetic_columns(number_columns, height, anchor, spin, orient)
         left(jar_od / 2 + 0.75 * half_prismic_cylinder_top_size)
         diff()
         {
-            half_prismic_cylinder(half_prismic_cylinder_top_size, height, anchor, spin, orient)
+            half_prismic_cylinder(half_prismic_cylinder_top_size, height, BOTTOM, spin, orient)
             {
                 down(4 * layer_height)
                 zrot(90)
@@ -1115,14 +899,13 @@ module screw_together_columns(number_columns, height, anchor, spin, orient)
         {
             diff()
             {
-                half_prismic_cylinder(half_prismic_cylinder_top_size, height, anchor, spin, orient, bottom_ratio = 1.)
+                half_prismic_cylinder(half_prismic_cylinder_top_size, height, BOTTOM, spin, orient, bottom_ratio = 1.)
                 {
                     if (anchor == TOP)
                     {
                         // The top lid mold needs a nut trap
-                        down(height - nut_width)
+                        up(nut_thickness)
                         zrot(90)
-                        xrot(180)
                         attach(BOTTOM)
                         tag("remove")
                         screw_hole(mold_screw, length = 2 * height, $slop = screw_hole_slop)
@@ -1134,10 +917,9 @@ module screw_together_columns(number_columns, height, anchor, spin, orient)
                     else {
                         // The bottom lid mold needs a screw hole.  
                         // When this mold is in place the screw head will be at the top.
-                        down(difference_tolerance)
-                        attach(TOP)
+                        attach(CENTER)
                         tag("remove")
-                        screw_hole(mold_screw, length = 2 * height + 2 * difference_tolerance, $slop = screw_hole_slop);
+                        screw_hole(mold_screw, length = 2 * height, $slop = screw_hole_slop);
                     }
                 }
                 
@@ -1159,77 +941,181 @@ module screw_together_columns(number_columns, height, anchor, spin, orient)
     }
 }
 
+module post_for_port_hole(h, d, post_connector_specs, anchor, in_lid, cylinder_only)
+{
+    attachable(d = d, h = h)
+    {
+        if (cylinder_only)
+        {
+            // The post will be shorter than the lid height
+            up(post_hole_shortening) // Used because the height will be short by this amount to keep the hole off the bottom
+            cylinder(h = h, d = d+(show_molded_part || hollow_out_stopper ?2*difference_tolerance: 0), anchor = anchor);
+        }
+        else
+        {
+            if (struct_val(post_connector_specs, "type") == "screw")
+            {
+                screw_size = struct_val(post_connector_specs, "size");
+                screw_length = struct_val(post_connector_specs, "length");
+                screw_head = struct_val(post_connector_specs, "head");
+                screw_drive = struct_val(post_connector_specs, "drive");
+                info_on_screw = screw_info(screw_size, head=screw_head, drive=screw_drive);
+
+                // A screw post (no threads) and clearance hole is used
+                if (in_lid)
+                {
+                    diff("screw")
+                    {
+                        // Create an unthreaded hole based on the screw size
+                        up(post_hole_shortening) // Used because the height will be short by this amount to keep the hole off the bottom
+                        cylinder(d = d, h = max(screw_length + mold_wall_thickness, h), anchor = BOTTOM)
+                        
+                        tag("screw")
+                        position(TOP)
+                        screw_hole(screw_size, length = screw_length, thread=false, bevel1="reverse", anchor = TOP, 
+                                  tolerance="close", $slop = 0.);
+                    }
+                 }
+                else
+                {
+                    // Create a post with a cylinder at the top
+                    tex = texture("pyramids_vnf", $fn = 16);
+                    linear_sweep(
+                        circle(d = d), texture = tex,
+                               h = height_of_post_grip,
+                               tex_size = [2, 2], style = "concave", anchor = BOTTOM
+                        )
+                    
+                    position(TOP)
+                    cylinder(d = d, h = h-screw_length, anchor = BOTTOM)
+                    
+                    up(quantup(screw_length-2*layer_height, layer_height)-screw_length-2*layer_height)
+                    position(TOP)
+                    screw(screw_size, "none", "none", thread=false, 
+                         length = quantup(screw_length-2*layer_height, layer_height), bevel1=false, anchor = BOTTOM)
+                    
+                    {
+                        // Add a resistance ring in the center of the post
+                        attach(CENTER)
+                        torus(id = struct_val(info_on_screw, "diameter")-struct_val(post_connector_specs, "ring_d_inc"), 
+                              od = struct_val(info_on_screw, "diameter")+struct_val(post_connector_specs, "ring_d_inc"), 
+                              anchor = CENTER);
+                    }
+                }
+            }
+            else
+            {
+                // A snap pin is used
+                snap_pin_size = struct_val(post_connector_specs, "size");
+                snap_pin_length = struct_val(post_connector_specs, "length");
+                
+                if (in_lid)
+                {
+                    // Create a socket for the pin
+                    diff("socket")
+                    {
+                        up(post_hole_shortening)
+                        cylinder(d = d, h = max(snap_pin_length + mold_wall_thickness, h), anchor = anchor)
+                        tag("socket")
+                        up(difference_tolerance)
+                        position(-anchor)
+                        snap_pin_socket(size = snap_pin_size, pointed = false, anchor = anchor, orient = anchor == TOP ?
+                            UP:
+                                DOWN);
+                    }
+                }
+                else
+                {
+                    // Create a post with a snap pin
+                    cylinder(h = h, d = d, anchor = anchor)
+                    
+                    top_half(s=100)
+                    down(snap_pin_length)
+                    position(TOP)
+                    snap_pin(snap_pin_size, l = snap_pin_length, snap = 0.125 * d / 2, anchor = anchor, orient = UP,
+                            pointed = false, thickness = 1);
+                    
+                }
+            }
+        }
+        
+        children();
+
+    }
+}
+
 module lid_top_mold()
 {
     if (show_support_plate)
     {
         // Show where the support plate will be
         recolor("cyan")
-        up(thickness_below_support_plate + support_plate_post_ridge_thickness / 2)
+        up(lid_mold_height - thickness_below_support_plate - support_plate_post_ridge_thickness / 2)
         #support_plate();
     }
     
-    // This part is constructed upside-down
     difference()
     {
         union()
         {
-            up(difference_tolerance)
             cylinder(h = lid_mold_height, d = jar_od + mold_wall_thickness, anchor = BOTTOM);
             
             if (use_screws_to_hold_together_mold_halves)
                 // Add columns for the screws nut traps on the outside of mold cavity
-                screw_together_columns(number_mold_joining_columns, lid_mold_height, anchor = TOP, spin = 180, orient =
-                DOWN);
+                screw_together_columns(number_mold_joining_columns, lid_mold_height, anchor = TOP, spin = 0, orient =
+                UP);
             else
                 // Add columns for the magnet traps on the outside of mold cavity
-                magnetic_columns(number_mold_joining_columns, lid_mold_height, anchor = TOP, spin = 180, orient = DOWN);
+                magnetic_columns(number_mold_joining_columns, lid_mold_height, anchor = TOP, spin = 0, orient = UP);
             
         }
         
-        difference()
+        // The lid, including the well for the bearing
+        up(lid_mold_height)
+        union()
         {
-            // The lid exterior, including the well for the bearing
-            union()
+            up(difference_tolerance)
+            cylinder(h = gasket_thickness_qup + difference_tolerance, d1 = jar_od, 
+                    d2 = jar_od - draft_dia_adjustment(gasket_thickness), anchor = TOP)
+            
+            // The section with the embedded support plate overlaps the gasket
+            position(BOTTOM)
+            up(gasket_thickness_qup)
+            cylinder(h = thickness_above_rim_qup, d1 = layer_containing_support_plate_d, d2 = upper_surface_d,
+                    anchor = TOP)
+            
+            position(BOTTOM)
+            up(difference_tolerance)
+            diff()
             {
-                cylinder(h = gasket_thickness_qup, d1 = jar_od, d2 = jar_od - draft_dia_adjustment(gasket_thickness),
-                        anchor = BOTTOM)
+                tube(h = bearing_width_qup + difference_tolerance, id = bearing_od,
+                    od = bearing_od + 2 * bearing_pocket_wall_thickness, anchor = TOP)
                 
-                // The section with the embedded support plate overlaps the gasket
-                position(TOP)
-                down(gasket_thickness_qup)
-                cylinder(h = thickness_above_rim_qup, d1 = layer_containing_support_plate_d, d2 = upper_surface_d,
-                        anchor = BOTTOM)
-                
-                position(TOP)
-                down(difference_tolerance)
-                diff()
-                {
-                    tube(h = bearing_width_qup + difference_tolerance, id = bearing_od,
-                        od = bearing_od + 2 * threaded_post_wall_thickness, anchor = BOTTOM)
-                    
-                    attach([TOP]) tag("remove")
-                    down(2)
-                    chamfer_cylinder_mask(r = bearing_od / 2 + threaded_post_wall_thickness, chamfer = 2,
-                                         anchor = BOTTOM);
-                    
-                }
+                attach([BOTTOM]) tag("remove")
+                down(2)
+                chamfer_cylinder_mask(r = bearing_od / 2 + bearing_pocket_wall_thickness, chamfer = 2,
+                                     anchor = BOTTOM);
                 
             }
-            
-            // Make the hole for the shaft
-            union()
-            {
-                down(difference_tolerance - bearing_width_qup - thickness_above_rim_qup)
-                cylinder(h = thickness_above_rim_qup + bearing_width_qup  + 
-                    (hollow_out_stopper ? 0 : stopper_thickness_qup) + 2 * difference_tolerance,
-                        d = impeller_shaft_d_slide, anchor = TOP);
-            }
-            
-            holes_for_ports();
             
         }
+        
+        // Hollow out the post hole so that the threaded part can be below the surface
+        post_for_port_hole(post_height_in_top_lid, shaft_clearance_d, 
+                           post_specs_shaft, BOTTOM, true, !show_molded_part);
+        holes_for_ports(post_height_in_top_lid, BOTTOM, true, !show_molded_part);
     }
+    
+    // Make the post for the shaft that will create the hole for it
+    down(show_molded_part ? post_hole_shortening : 0)
+    post_for_port_hole(post_height_in_top_lid+(show_molded_part?lid_mold_height:0), shaft_clearance_d, 
+                      post_specs_shaft, BOTTOM, true, show_molded_part || hollow_out_stopper);
+    
+    // Create the posts that will create the holes for the instruments
+    down(show_molded_part ? post_hole_shortening : 0)
+    holes_for_ports(post_height_in_top_lid+(show_molded_part?lid_mold_height:0), BOTTOM, true, 
+                   show_molded_part || hollow_out_stopper);
+    
     
     if (add_support_plate_posts)
     {
@@ -1253,7 +1139,6 @@ module lid_bottom_mold()
         anchor = BOTTOM);
 */
     
-    lid_bottom_mold_height = taper_height - 2 * difference_tolerance;
     difference()
     {
         union()
@@ -1301,91 +1186,6 @@ module lid_bottom_mold()
         
     }
 }
-
-// This module is no longer used
-//module lid()
-//{
-//    post_increase_d = 0; //2*threaded_post_wall_thickness;
-//    
-//    // Show the maximum circle available for the ports
-//    if (show_port_zones)
-//    {
-//        up(taper_height + gasket_thickness + thickness_above_rim)
-//        %cylinder(h = 1, d = min(lid_taper_smallest_d, upper_surface_d), anchor = BOTTOM);
-//    }
-//    
-//    difference()
-//    {
-//        union()
-//        {
-//            cylinder(h = taper_height, d1 = lid_taper_smallest_d, d2 = jar_mouth_largest_id,
-//                    anchor = BOTTOM)
-//            
-//            position(TOP)
-//            cylinder(h = gasket_thickness, d1 = jar_od, d2 = jar_od - draft_dia_adjustment(gasket_thickness),
-//                    anchor = BOTTOM)
-//            
-//            // The section with the embedded support plate overlaps the gasket
-//            position(TOP)
-//            down(gasket_thickness)
-//            cylinder(h = thickness_above_rim, d1 = layer_containing_support_plate_d, d2 = upper_surface_d, anchor =
-//            BOTTOM);
-//            
-//            up(stopper_thickness)
-//            threaded_post_for_shaft();
-//            
-//            /*
-//                        // Thread the ports with an external thread
-//                        up(stopper_thickness)
-//                        {
-//                            for (port_index = [0:number_ports - 1])
-//                            {
-//                                port_locator(port_index, port_d, 0)
-//                                threaded_post_for_port(port_d, 4 * threaded_post_wall_thickness, port_inner_support_width);
-//                            }
-//            
-//                            for (port_index = [0:2:number_ports - 1])
-//                            {
-//                                port_locator(port_index, small_port_d, phase_angle_small)
-//                                threaded_post_for_port(small_port_d, 4 * threaded_post_wall_thickness, 0);
-//                            }
-//            
-//                            for (port_index = [1:2:number_ports - 1])
-//                            {
-//                                port_locator(port_index, mini_port_d, phase_angle_mini)
-//                                threaded_post_for_port(mini_port_d, 4 * threaded_post_wall_thickness, 0);
-//                            }
-//                        }
-//            */
-//            
-//        }
-//        
-//        if (show_support_plate)
-//        {
-//            // Show where the support plate will be
-//            recolor("cyan")
-//            up(taper_height + thickness_below_support_plate - support_plate_thickness / 2)
-//            #support_plate();
-//        }
-//        
-//        // Make the holes
-//        down(difference_tolerance)
-//        union()
-//        {
-//            // Make the hole for the shaft
-//            cylinder(h = stopper_thickness + bearing_width + 2 * difference_tolerance, d = impeller_shaft_diameter +
-//                sliding_tolerance, anchor = BOTTOM);
-//            
-//            cylinder(h = hollow_out_stopper ? stopper_thickness - thickness_above_rim : 0,
-//                    r1 = lid_taper_smallest_d / 2 - stopper_taper_width,
-//                    r2 = jar_mouth_largest_id / 2 - stopper_taper_width, anchor = BOTTOM);
-//            
-//            holes_for_ports();
-//        }
-//        
-//    }
-//    
-//}
 
 module lid_cutting_jig()
 {
@@ -1522,11 +1322,9 @@ module lid_top_from_mold(show_molded_part)
     difference()
     {
         if (show_molded_part) {
-            cylinder(h = lid_mold_height - difference_tolerance, d = jar_od);
+            up(difference_tolerance)
+            cylinder(h = lid_mold_height - 2*difference_tolerance, d = jar_od);
         }
-        //zrot(130)
-        up(lid_mold_height)
-        xrot(180)
         lid_top_mold();
         
     }
@@ -1544,91 +1342,124 @@ module lid_bottom_from_mold(show_molded_part)
             cylinder(h = taper_height, d2 = lid_taper_smallest_d, d1 = jar_mouth_largest_id,
                     anchor = BOTTOM);
         }
-        //zrot(130)
         xrot(180)
         down(taper_height + difference_tolerance)
         lid_bottom_mold();
         
-        if (show_molded_part && hollow_out_stopper)
+        if (show_molded_part)
         {
-            down(difference_tolerance)
-            cylinder(h = taper_height + mold_wall_thickness + 2 * difference_tolerance, d2 =
-            diameter_inside_hollow_of_tapered_base,
-                    d1 = diameter_inside_hollow_of_tapered_base_with_draft,
-                    anchor = BOTTOM);
+            if (hollow_out_stopper)
+            {
+                down(difference_tolerance)
+                cylinder(h = taper_height + mold_wall_thickness + 2 * difference_tolerance, d2 =
+                diameter_inside_hollow_of_tapered_base,
+                        d1 = diameter_inside_hollow_of_tapered_base_with_draft,
+                        anchor = BOTTOM);
+                
+            }
+            else 
+            {
+                down((height_of_posts_when_using_solid_bottom - taper_height) - difference_tolerance)
+                {
+                    holes_for_ports(height_of_posts_when_using_solid_bottom, BOTTOM, false, true);
+                    post_for_port_hole(height_of_posts_when_using_solid_bottom,
+                                        shaft_clearance_d, post_specs_shaft, BOTTOM, false, true);
+                    
+                }
+            }
         }
+        
     }
 }
 
-/*if (part_to_show == "lid")
+module show_parts()
 {
-    back_half(s = show_cross_section ? 200 : 0)
-    //zrot(130)
-    lid();
+    // Allow a cross section to be displayed for any part
+    half_of(cut_plane_normal, s = show_cross_section_view == "none" ? 0 : 200)
     
-}
-else */
-if (part_to_show == "lid_top_mold")
-{
-    back_half(s = show_cross_section ? 200 : 0)
-    lid_top_from_mold(show_molded_part);
-}
-else if (part_to_show == "lid_bottom_mold")
-{
-    back_half(s = show_cross_section ? 200 : 0)
-    lid_bottom_from_mold(show_molded_part);
-}
-
-else if (part_to_show == "jar lid from mold")
-{
-    back_half(s = show_cross_section ? 200 : 0)
-    union()
+    if (part_to_show == "lid top mold")
     {
-        up(show_molded_part ? 0: lid_mold_height + taper_height)
-        xrot(show_molded_part ? 0: 180)
-        lid_bottom_from_mold(show_molded_part);
-        up(show_molded_part ? taper_height : 0)
         lid_top_from_mold(show_molded_part);
     }
+    else if (part_to_show == "lid bottom mold")
+    {
+        lid_bottom_from_mold(show_molded_part);
+    }
+    else if (part_to_show == "jar lid from mold")
+    {
+        union()
+        {
+            up(show_molded_part ? 0: lid_mold_height + lid_bottom_mold_height)
+            xrot(show_molded_part ? 0: 180)
+            lid_bottom_from_mold(show_molded_part);
+            
+            up(show_molded_part ? lid_bottom_mold_height : 0)
+            lid_top_from_mold(show_molded_part);
+            
+            if (!show_molded_part && !hollow_out_stopper)
+            {
+                // Show a simplified version of the posts
+                recolor("blue")
+                up(post_height_in_top_lid + height_of_posts_when_using_solid_bottom + 2*post_hole_shortening)
+                zflip()
+                {
+                    holes_for_ports(height_of_posts_when_using_solid_bottom, BOTTOM, false, true);
+                    post_for_port_hole(height_of_posts_when_using_solid_bottom,
+                                      shaft_clearance_d, post_specs_shaft, BOTTOM, false, true);
+                    
+                }
+                
+            }
+        }
+        
+    }
+    else if (part_to_show == "posts for solid bottom design")
+    {
+        holes_for_ports(height_of_posts_when_using_solid_bottom, BOTTOM, false, false);
+        post_for_port_hole(height_of_posts_when_using_solid_bottom,
+                          shaft_clearance_d, post_specs_shaft, BOTTOM, false, false);
+    }
+    
+    else if (part_to_show == "jar lid cutting jig")
+    {
+        lid_cutting_jig();
+    }
+    else if (part_to_show == "18 mm port mold")
+    {
+        mold_for_bung_for_port(port_d);
+    }
+    else if (part_to_show == "14 mm port mold")
+    {
+        mold_for_bung_for_port(small_port_d);
+    }
+    else if (part_to_show == "10 mm port mold")
+    {
+        mold_for_bung_for_port(mini_port_d);
+    }
+    else if (part_to_show == "plate drilling template")
+    {
+        projection(cut = true)
+        down(support_plate_thickness / 2)
+        support_plate(true);
+    }
+    else if (part_to_show == "test post hole fit")
+    {
+        post_height = 5;
+        port_od = port_d;
+        post_specs = post_specs_large;
+        post_for_port_hole(post_height+1, port_od, post_specs,
+                          BOTTOM, in_lid = false, cylinder_only = false);
+        
+        left(port_od * 3)
+        down(post_hole_shortening)
+        post_for_port_hole(post_height, port_od, post_specs,
+                          BOTTOM, in_lid = true, cylinder_only = false);
+    }
+    else if (part_to_show == "test jar insert")
+    {
+        test_insert();
+    }
     
 }
-else if (part_to_show == "jar lid cutting jig")
-{
-    back_half(s = show_cross_section ? 200 : 0)
-    lid_cutting_jig();
-}
-else if (part_to_show == "18 mm port mold")
-{
-    snap_pin_specs = struct_set([], ["size", "standard", "length", 10.8, "diameter", 7]);
-    partition_specs = struct_set([], ["cutsize", 3.5, "gap", 28.75, "cutpath", "flat"]);  // Tuned by experimentation
-    back_half(s = show_cross_section ? 200 : 0)
-    //    mold_for_threaded_post_for_port(port_d, 4 * threaded_post_wall_thickness, 0, snap_pin_specs, partition_specs);
-    mold_for_bung_for_port(port_d, partition_specs);
-}
-else if (part_to_show == "10 mm port mold")
-{
-    snap_pin_specs = struct_set([], ["size", "standard", "length", 10.8, "diameter", 7]);
-    partition_specs = struct_set([], ["cutsize", 3.5, "gap", 25., "cutpath", "flat"]);  // Tuned by experimentation
-    back_half(s = show_cross_section ? 200 : 0)
-    //    mold_for_threaded_post_for_port(small_port_d, 4 * threaded_post_wall_thickness, 0, snap_pin_specs, partition_specs);
-    mold_for_bung_for_port(small_port_d, partition_specs);
-}
-else if (part_to_show == "6 mm port mold")
-{
-    snap_pin_specs = struct_set([], ["size", "medium", "length", 8, "diameter", 4.6]);
-    partition_specs = struct_set([], ["cutsize", 2, "gap", 20., "cutpath", "flat"]);  // Tuned by experimentation
-    back_half(s = show_cross_section ? 200 : 0)
-    //    mold_for_threaded_post_for_port(mini_port_d, 4 * threaded_post_wall_thickness, 0, snap_pin_specs, partition_specs);
-    mold_for_bung_for_port(mini_port_d, partition_specs);
-}
-else if (part_to_show == "plate drilling template")
-{
-    projection(cut = true)
-    down(support_plate_thickness / 2)
-    support_plate(true);
-}
-else if (part_to_show == "test")
-{
-    test_insert();
-}
 
+show_parts();
