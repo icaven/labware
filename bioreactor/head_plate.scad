@@ -52,7 +52,7 @@ use <magnet_trap.scad>
 /* [Viewing options] */
 
 // Show a part, or the assembled parts in position
-part_to_show = "jar lid from mold";// [jar lid from mold, lid top mold,lid bottom mold,posts for solid bottom design,caps for posts,test screw together columns, plate drilling template,jar lid cutting jig,18 mm port mold,14 mm port mold,10 mm port mold,test post hole fit,test jar insert]
+part_to_show = "jar lid from mold";// [jar lid from mold, lid top mold,lid bottom mold,posts for solid bottom design,caps for posts,plugs for lid,test screw together columns, plate drilling template,jar lid cutting jig,18 mm port mold,14 mm port mold,10 mm port mold,test post hole fit,test jar insert]
 
 // Show the embedded support_plate
 show_support_plate = false;
@@ -1157,6 +1157,57 @@ module caps_for_posts()
     
 }
 
+// This plug may be used in the screw holes in the top lid where a post is not desired
+module plug_for_post_screw_hole(d, post_connector_specs, label)
+{
+    screw_size = struct_val(post_connector_specs, "size");
+    info_on_screw = screw_info(screw_size);                
+    screw_d = struct_val(info_on_screw, "diameter");
+
+    plug_lid_height = height_of_post_recess;
+    normal_screw_tolerance = 0.4;
+    
+    union() {
+        // The plug lid
+        cylinder(d=d, h=plug_lid_height, anchor=BOTTOM)
+        
+        // The plug stem
+        position(TOP)
+        cylinder(d=screw_d + normal_screw_tolerance, h=quantup(2, layer_height), anchor=BOTTOM);
+        
+    }
+}
+
+module plugs_for_top_lid()
+{
+    
+    // Make the cap for the post for the shaft hole
+    plug_for_post_screw_hole(shaft_clearance_d, post_specs_shaft, "S");
+
+    // Make the caps for the outer posts
+    for (port_index = [0:number_ports - 1])
+    {
+        port_label = chr(port_index + ord("A"));
+        port_locator(port_index, port_d, 0)
+        plug_for_post_screw_hole(port_d, post_specs_large, port_label);
+    }
+    
+    for (port_index = [0:2:number_ports - 1])
+    {
+        port_label = chr(floor(port_index/2) + number_ports + ord("A"));
+        port_locator(port_index, small_port_d, phase_angle_small)
+        plug_for_post_screw_hole(small_port_d, post_specs_large, port_label);
+   }
+    
+    for (port_index = [1:2:number_ports - 1])
+    {
+        port_label = chr(floor(port_index/2) + number_ports + 1 + floor((number_ports - 1)/2) + ord("A"));
+        port_locator(port_index, mini_port_d, phase_angle_mini)
+        plug_for_post_screw_hole(mini_port_d, post_specs_small, port_label);
+    }
+    
+}
+
 module lid_top_mold()
 {
     // The recessed post mounting areas OR the posts used for showing the molded part
@@ -1576,6 +1627,7 @@ module show_parts()
         // Cut out a part of the lid top mold to print the parts for testing the fit of the post 
         
         // The post for the center hole
+        up(height_of_post_recess)
         post_for_port_hole(height_of_posts_when_using_solid_bottom, shaft_clearance_d, post_specs_shaft, BOTTOM, false,
                            false, false, "S");
 
@@ -1599,10 +1651,20 @@ module show_parts()
             cylinder(h=lid_mold_height, d=bearing_od, anchor=BOTTOM);
         }
         
+        // Make a plug for the lid screw hole
+        back(bearing_od + 2 * bearing_pocket_wall_thickness)
+        plug_for_post_screw_hole(shaft_clearance_d, post_specs_shaft, "S");
+        
     }
     else if (part_to_show == "caps for posts")
     {
         caps_for_posts();
+    }
+    else if (part_to_show == "plugs for lid")
+    {
+//        plug_for_post_screw_hole(shaft_clearance_d, post_specs_shaft, "S");
+
+        plugs_for_top_lid();
     }
     else if (part_to_show == "test screw together columns")
     {
