@@ -52,7 +52,7 @@ use <magnet_trap.scad>
 /* [Viewing options] */
 
 // Show a part, or the assembled parts in position
-part_to_show = "jar lid from mold";// [jar lid from mold, lid top mold,lid bottom mold,posts for solid bottom design,caps for posts,plugs for lid,test screw together columns, plate drilling template,jar lid cutting jig,18 mm port mold,14 mm port mold,10 mm port mold,test post hole fit,test jar insert]
+part_to_show = "jar lid from mold";// [jar lid from mold, lid top mold,lid bottom mold,posts for solid bottom design,caps for posts,plugs for lid,test screw together columns, plate drilling template,jar lid cutting jig,large port mold,small port mold,mini port mold,test post hole fit,test jar insert]
 
 // Show the embedded support_plate
 show_support_plate = false;
@@ -65,6 +65,10 @@ show_cross_section_view = "none"; // [none, back, left, front, right, back+left,
 show_port_zones = false;
 // for the mold parts
 show_molded_part = false;
+// Show the assembly (for some parts)
+show_assembled = true;
+// Show the assembly in exploded view (for some parts)
+exploded_view = false;
 /*
 Disabled
 // Hollow out beneath the support support plate
@@ -73,12 +77,12 @@ hollow_out_stopper = false;
 
 /* [Port specifications] */
 // Number of large ports (the number of each of the smaller ports will be half of this)
-number_ports = 6;
+number_ports = 4;
 
 // Diameter of the 3 sizes of ports
 port_d = 18;
 small_port_d = 14;
-mini_port_d = 10;
+mini_port_d = 12;
 
 port_height = 6;
 // Thickness of the walls of the bearing pocket
@@ -117,7 +121,7 @@ impeller_shaft_clearance_width = 1.;
 sliding_tolerance = 0.1;
 
 // Thickness of the part that rests on the jar rim
-gasket_thickness = 1; // 0.5
+gasket_thickness = 1.5; // 0.5
 
 // For the nut: The printer-specific slop value, which adds clearance 4*slop to internal threads.
 slop = 0.07; // 0.01
@@ -142,9 +146,6 @@ cut_plane_normal = show_cross_section_view == "back" ? BACK :
 
 function mm_to_inch(x) = x / 25.4;
 function inch_to_mm(x) = 25.4 * x;
-
-// Obsolete specification - to be removed
-threaded_post_wall_thickness = 2.8; // 0.1
 
 // Hollow out beneath the support support plate
 // Functionality not updated for latest design - this replaces the customizer variable above until the functionality can be restored
@@ -292,6 +293,10 @@ height_of_post_grip = 5;    // The height of the region to grip the posts with w
 height_of_posts_when_using_solid_bottom = taper_height + height_of_post_grip + 1 +
     (lid_mold_height - post_height_in_top_lid);
 
+// Dimensions of a cap on a post, which covers the inline nut trap when assembled
+cap_lid_height = quantup(0.5, layer_height);
+cap_insert_height = quantup(2, layer_height);
+
 // Variables used to control the hollowing out of the base inside the tapered walls.  A small angle is used to 
 // allow the part to be extracted from the mold more easily.
 diameter_outside_hollow_of_tapered_base = lid_taper_smallest_d;
@@ -324,46 +329,27 @@ post_specs_large = struct_set([], ["type", "screw", "size", "M3", "length", leng
                         "drive", "phillips", "ring_d_inc", nozzle_diameter]);
 
 
+// This module is used for printing an insert to test the fit of the tapered portion of an inserted lid
 module test_insert()
 {
-    thickness = 0.4;
-    theta = atan(15 / (4 / 2));
-    echo("theta = ", theta);
+    // The insert may be printed in "spiral vase" mode - a single perimeter - for economy of filament
+    thickness = nozzle_diameter;
+    
+     // Values from measurement of glass jar
+    h = 15;     // Height of jar taper from jar opening to the bottom of the neck of the jar
+    jar_neck_taper_angle = atan(h / (4 / 2));
+    echo("jar_neck_taper_angle = ", jar_neck_taper_angle);
     smallest_d = 96;
-    h = 15;
-    new_largest_d = 2 * h / tan(theta) + smallest_d;
-    echo("2*h / tan(theta) = ", 2 * h / tan(theta));
+    new_largest_d = 2 * h / tan(jar_neck_taper_angle) + smallest_d;
+    echo("2*h / tan(jar_neck_taper_angle) = ", 2 * h / tan(jar_neck_taper_angle));
     echo("new_largest_d = ", new_largest_d);
-    echo("new_smallest_d = ", new_largest_d - 2 * h / tan(theta));
+    echo("new_smallest_d = ", new_largest_d - 2 * h / tan(jar_neck_taper_angle));
     
-    //    tube(h = 1, od = 107, id = new_largest_d - thickness, anchor = BOTTOM)
-    
-    //    position(TOP)
     tube(h=h, od1=new_largest_d, id1=new_largest_d - thickness, od2=smallest_d, id2=smallest_d - thickness,
          anchor=BOTTOM);
     
 }
 
-
-module threaded_post_for_shaft()
-{
-    // For testing, show the size of the hole in the support plate
-    //         #cylinder(h = bearing_width + 2 * difference_tolerance, d = 25.4 * 3 / 8, anchor = BOTTOM);
-    
-    // For testing, show the extent of the zone around the shaft port
-    port_zone(bearing_od + 2 * difference_tolerance, 4 * threaded_post_wall_thickness);
-    
-    difference()
-    {
-        trapezoidal_threaded_rod(d=bearing_od + 2 * threaded_post_wall_thickness, height=bearing_width,
-                                 pitch=mounting_plate_thread_pitch, thread_depth=mounting_plate_thread_depth,
-                                 thread_angle=trapezoidal_thread_angle, internal=false, starts=1,
-                                 blunt_start=true, anchor=BOTTOM);
-        
-        down(difference_tolerance)
-        cylinder(h=bearing_width + 2 * difference_tolerance, d=bearing_od, anchor=BOTTOM);
-    }
-}
 
 module port_zone(port_od, post_increase_d)
 {
@@ -698,7 +684,38 @@ module mold_for_bung_for_port(port_od)
         }
     }
     
-    create_parts_for_printing();
+    // Show the assembled mold parts or show the parts ready to be printed
+    if (show_assembled && !show_molded_part)
+    {
+        union()
+        {
+            if (exploded_view)
+            {
+                back(truncated_mold_r * 3)
+                xrot(90)
+                part_a();
+                
+                up(mold_height)
+                fwd(truncated_mold_r * 3)
+                xrot(-90)
+                part_b();
+            }
+            else
+            {
+                show_mated_mold_halves();
+            }
+            
+            nut_height = threaded_portion_height + mold_wall_thickness + dovetail_height_clearance;
+            up(mold_height + mold_wall_thickness + dovetail_height + (exploded_view ? nut_height : 0))
+            zrot(180)
+            xrot(180)
+            tapered_nut_for_mold();
+        }
+    }
+    else
+    {
+        create_parts_for_printing();
+    }
     
     // These are for testing the stages
     //    tapered_nut_for_mold();
@@ -712,13 +729,16 @@ module mold_for_bung_for_port(port_od)
     //    bung();
 }
 
-module port_locator(port_index, port_od, phase_angle)
+
+module port_locator(port_index, port_od, phase_angle, radius_offset=0)
 {
     angle_of_port = port_index * 360 / number_ports + phase_angle;
     zrot(angle_of_port)
-    fwd(support_plate_or - port_od / 2 - bearing_pocket_wall_thickness)
+    fwd(support_plate_or - port_od / 2 - bearing_pocket_wall_thickness + radius_offset)
     children();
 }
+
+
 module support_plate(show_center=false)
 {
     module cyl_with_plus(h, d, anchor=BOTTOM)
@@ -792,6 +812,7 @@ module support_plate(show_center=false)
     
 }
 
+
 module support_plate_post()
 {
     
@@ -805,6 +826,7 @@ module support_plate_post()
           id=support_plate_post_d - 0.5 * support_plate_post_ridge_thickness, anchor=BOTTOM);
     
 }
+
 
 module holes_for_ports(h, anchor, in_lid=true, cylinder_only, make_screw_hole)
 {
@@ -845,6 +867,7 @@ module holes_for_ports(h, anchor, in_lid=true, cylinder_only, make_screw_hole)
     
 }
 
+
 module half_prismic_cylinder(top_size, height, anchor, spin, orient, bottom_ratio=1 / 2)
 {
     attachable(anchor=anchor, spin=spin, orient=orient, size=[top_size * 1.5, top_size, height],
@@ -861,6 +884,7 @@ module half_prismic_cylinder(top_size, height, anchor, spin, orient, bottom_rati
         children();
     }
 }
+
 
 // Add columns for the magnet traps on the outside of mold cavity
 module magnetic_columns(number_columns, height, anchor, spin, orient)
@@ -888,81 +912,124 @@ module magnetic_columns(number_columns, height, anchor, spin, orient)
     }
 }
 
+
 // Add columns for the screws and nut traps on the outside of mold cavity
+// The columns have a small gap between them when joined top-and-bottom, so that they don't obstruct the mold halves
+// from making contact.  Also the columns are keyed so that the top and bottom mold halves will join together in the
+// desired orientation.
 module screw_together_columns(number_columns, height, anchor, spin, orient)
 {
     nut_info = nut_info(mold_screw);
     nut_width = struct_val(nut_info, "width");
     nut_thickness = struct_val(nut_info, "thickness");
-    
+    overlap_between_bottom_and_top = quantup(2, layer_height);
+    height_gap_between_upper_and_lower_halves = layer_height; // Use a gap so that the mold halves will make contact
     half_prismic_cylinder_top_size = nut_width * (use_side_nut_trap ? 1.5 : 2);
     for (column_index = [0:number_columns - 1])
     {
         zrot(column_index * 360 / number_columns)
-        left(jar_od / 2 + (use_side_nut_trap ? 0.75 : 0.65) * half_prismic_cylinder_top_size)
-        union()
+        difference()
         {
-            diff()
+            left(jar_od / 2 + (use_side_nut_trap ? 0.75 : 0.65) * half_prismic_cylinder_top_size)
+            intersection()
             {
-                half_prismic_cylinder(half_prismic_cylinder_top_size, height, BOTTOM, spin, orient, bottom_ratio=1.)
                 {
-                    if (anchor == TOP)
-                    {
-                        // The top lid mold needs a nut trap
-                        if (use_side_nut_trap)
-                        {
-                            up(nut_thickness + difference_tolerance)
-                            zrot(90)
-                            attach(BOTTOM)
-                            tag("remove")
-                            screw_hole(mold_screw, length=2 * height, $slop=screw_hole_slop)
-                            nut_trap_side(trap_width=half_prismic_cylinder_top_size,
-                                          poke_len=half_prismic_cylinder_top_size + difference_tolerance, poke_diam=1,
-                                          anchor=TOP);
-                            
-                        }
-                        else
-                        {
-                            up(difference_tolerance)
-                            zrot(90)
-                            attach(BOTTOM)
-                            tag("remove")
-                            screw_hole(mold_screw, length=2 * height, $slop=screw_hole_slop)
-                            
-                            up(difference_tolerance * 2)
-                            nut_trap_inline(l=nut_thickness * 2, spec=nut_info, orient=UP, anchor=TOP,
-                                            $slop=sliding_tolerance / 2);
-                            
-                        }
-                        
-                        
-                    }
-                    else {
-                        // The bottom lid mold needs a screw hole.  
-                        // When this mold is in place the screw head will be at the top.
-                        attach(CENTER)
-                        tag("remove")
-                        screw_hole(mold_screw, length=2 * height, $slop=screw_hole_slop);
-                    }
+                    down(difference_tolerance)
+                    cuboid(half_prismic_cylinder_top_size * 2, anchor=BOTTOM);
                 }
-                
-                // Add fillets between the outer mold cylinder and the columns
-                up(height)
                 union()
                 {
-                    right(0.75 * half_prismic_cylinder_top_size)
-                    back(half_prismic_cylinder_top_size / 2)
-                    fillet(height, r=0.75 * half_prismic_cylinder_top_size, ang=90, spin=90, anchor=TOP);
+                    diff("screw_hole")
+                    {
+                        up(height - height_gap_between_upper_and_lower_halves)
+                        {
+                            recolor(anchor == TOP ? "red" : "blue")
+                            {
+                                spread = 1;
+                                back(0.5 * spread)
+                                front_half()
+                                down(overlap_between_bottom_and_top / 2)
+                                partition([half_prismic_cylinder_top_size,
+                                           half_prismic_cylinder_top_size,
+                                           4 * overlap_between_bottom_and_top + difference_tolerance],
+                                          cutpath="flat", spread=spread)
+                                cylinder(d=half_prismic_cylinder_top_size, h=overlap_between_bottom_and_top,
+                                         anchor=BOTTOM);
+                            }
+                        }
+                        
+                        half_prismic_cylinder(half_prismic_cylinder_top_size,
+                                              height - overlap_between_bottom_and_top / 2,
+                                              BOTTOM, spin, orient, bottom_ratio=1.)
+                        {
+                            if (anchor == TOP)
+                            {
+                                // The top lid mold needs a nut trap
+                                if (use_side_nut_trap)
+                                {
+                                    up(nut_thickness + difference_tolerance)
+                                    zrot(90)
+                                    attach(BOTTOM)
+                                    tag("screw_hole")
+                                    screw_hole(mold_screw, length=2 * height, $slop=screw_hole_slop)
+                                    nut_trap_side(trap_width=half_prismic_cylinder_top_size,
+                                                  poke_len=half_prismic_cylinder_top_size + difference_tolerance,
+                                                  poke_diam=1,
+                                                  anchor=TOP);
+                                    
+                                }
+                                else
+                                {
+                                    up(difference_tolerance)
+                                    zrot(90)
+                                    attach(BOTTOM)
+                                    tag("screw_hole")
+                                    screw_hole(mold_screw, length=2.5 * height, $slop=screw_hole_slop)
+                                    
+                                    up(difference_tolerance * 2)
+                                    nut_trap_inline(l=nut_thickness * 2, spec=nut_info, orient=UP, anchor=TOP,
+                                                    $slop=sliding_tolerance / 2);
+                                    
+                                }
+                                
+                                
+                            }
+                            else {
+                                // The bottom lid mold needs a screw hole.  
+                                // When this mold is in place the screw head will be at the top.
+                                attach(CENTER)
+                                tag("screw_hole")
+                                screw_hole(mold_screw, length=2 * height, $slop=screw_hole_slop);
+                            }
+                        }
+                        
+                        // Add fillets between the outer mold cylinder and the columns
+                        up(height)
+                        union()
+                        {
+                            down(overlap_between_bottom_and_top / 2)
+                            right(0.75 * half_prismic_cylinder_top_size)
+                            back(half_prismic_cylinder_top_size / 2)
+                            fillet(height - overlap_between_bottom_and_top / 2, r=0.75 * half_prismic_cylinder_top_size,
+                                   ang=90, spin=90, anchor=TOP);
+                            
+                            down(overlap_between_bottom_and_top / 2)
+                            right(0.75 * half_prismic_cylinder_top_size)
+                            fwd(half_prismic_cylinder_top_size / 2)
+                            fillet(height - overlap_between_bottom_and_top / 2, r=0.75 * half_prismic_cylinder_top_size,
+                                   ang=90, spin=180, anchor=TOP);
+                        }
+                    }
                     
-                    right(0.75 * half_prismic_cylinder_top_size)
-                    fwd(half_prismic_cylinder_top_size / 2)
-                    fillet(height, r=0.75 * half_prismic_cylinder_top_size, ang=90, spin=180, anchor=TOP);
                 }
             }
-            
+            down(difference_tolerance)
+            cylinder(d=jar_od, h=height+difference_tolerance*2, anchor=BOTTOM);
+
         }
     }
 }
+
 
 module post_for_port_hole(h, d, post_connector_specs, anchor, in_lid, cylinder_only, make_screw_hole, port_label="X")
 {
@@ -1036,7 +1103,7 @@ module post_for_port_hole(h, d, post_connector_specs, anchor, in_lid, cylinder_o
                 }
                 else
                 {
-                    nut_trap_h = h - screw_length + post_height_in_top_lid + screw_head_height + difference_tolerance;
+                    nut_trap_h = h - screw_length + post_height_in_top_lid + difference_tolerance;
                     diff("screw")
                     {
                         // Create a bottom chamfered post with an unthreaded hole, and a nut trap
@@ -1062,9 +1129,9 @@ module post_for_port_hole(h, d, post_connector_specs, anchor, in_lid, cylinder_o
                                            orient=DOWN, $slop=0.)
                                 
                                 
-                                // Allow the nut hole to be a little longer to ensure that the post can be screwed down firmly
+                                // The height of the nut hole is sufficient to ensure that the post can be screwed down firmly
                                 position(TOP)
-                                down(screw_length + screw_head_height - nut_thickness * 2)
+                                down(screw_length + screw_head_height - nut_thickness)
                                 nut_trap_inline(l=nut_trap_h, spec=info_on_screw, orient=DOWN, anchor=BOTTOM, 
                                                 $slop=sliding_tolerance/2)
                                 
@@ -1084,14 +1151,13 @@ module post_for_port_hole(h, d, post_connector_specs, anchor, in_lid, cylinder_o
     }
 }
 
+
 module cap_for_port_hole_post(d, post_connector_specs, label)
 {
     screw_size = struct_val(post_connector_specs, "size");
     info_on_nut = nut_info(screw_size);
     nut_d = struct_val(info_on_nut, "width") / sin(60) + 2 * sliding_tolerance;
     cap_text_height = quantup(0.5, layer_height);
-    insert_height = quantup(2, layer_height);
-    cap_lid_height = quantup(0.5, layer_height);
     
     module chamfered_hex_cyl()
     {
@@ -1100,8 +1166,8 @@ module cap_for_port_hole_post(d, post_connector_specs, label)
             difference()
             {
                 // Chamfer with a steep angle, the part that will fit into the nut trap 
-                cylinder(d=nut_d, h=insert_height, $fn=6, anchor=BOTTOM);
-                chamfer_cylinder_mask(d=nut_d, chamfer=insert_height, ang=87, anchor=BOTTOM, $fn=6);
+                cylinder(d=nut_d, h=cap_insert_height, $fn=6, anchor=BOTTOM);
+                chamfer_cylinder_mask(d=nut_d, chamfer=cap_insert_height, ang=87, anchor=BOTTOM, $fn=6);
             }
             children();
         }
@@ -1119,12 +1185,13 @@ module cap_for_port_hole_post(d, post_connector_specs, label)
             chamfered_hex_cyl();
         }
         // Label the post cap
-        up(cap_lid_height + insert_height-difference_tolerance)
+        up(cap_lid_height + cap_insert_height-difference_tolerance)
         linear_extrude(cap_text_height)
         text(label, size=nut_d / 2, halign="center", valign="center", $fn=100);
     }
     
 }
+
 
 module caps_for_posts()
 {
@@ -1157,6 +1224,7 @@ module caps_for_posts()
     
 }
 
+
 // This plug may be used in the screw holes in the top lid where a post is not desired
 module plug_for_post_screw_hole(d, post_connector_specs, label)
 {
@@ -1177,6 +1245,7 @@ module plug_for_post_screw_hole(d, post_connector_specs, label)
         
     }
 }
+
 
 module plugs_for_top_lid()
 {
@@ -1207,6 +1276,7 @@ module plugs_for_top_lid()
     }
     
 }
+
 
 module lid_top_mold()
 {
@@ -1244,15 +1314,18 @@ module lid_top_mold()
             {
                 cylinder(h=lid_mold_height, d=jar_od + mold_wall_thickness, anchor=BOTTOM);
                 
-                if (use_screws_to_hold_together_mold_halves)
-                    // Add columns for the screws nut traps on the outside of mold cavity
-                    screw_together_columns(number_mold_joining_columns, lid_mold_height, anchor=TOP, spin=0,
-                                           orient=UP);
-                else
-                    // Add columns for the magnet traps on the outside of mold cavity - THIS IS DEPRECATED, use screws 
-                    // to hold_together mold the halves instead
-                    magnetic_columns(number_mold_joining_columns, lid_mold_height, anchor=TOP, spin=0,
-                                     orient=UP);
+                if (!show_molded_part) // Shouldn't need this check but normalization fails otherwise
+                {
+                    if (use_screws_to_hold_together_mold_halves)
+                        // Add columns for the screws nut traps on the outside of mold cavity
+                        screw_together_columns(number_mold_joining_columns, lid_mold_height, anchor=TOP, spin=0,
+                                               orient=UP);
+                    else
+                        // Add columns for the magnet traps on the outside of mold cavity - THIS IS DEPRECATED, use screws 
+                        // to hold_together mold the halves instead
+                        magnetic_columns(number_mold_joining_columns, lid_mold_height, anchor=TOP, spin=0,
+                                         orient=UP);
+                }
             }
             
             if (!show_molded_part)
@@ -1321,6 +1394,7 @@ module lid_top_mold()
     
 }
 
+
 module lid_bottom_mold()
 {
     /*     
@@ -1336,14 +1410,17 @@ module lid_bottom_mold()
         {
             cylinder(h=lid_bottom_mold_height, d=jar_od + mold_wall_thickness, anchor=BOTTOM);
             
-            if (use_screws_to_hold_together_mold_halves)
-                // Add columns for the screws nut traps on the outside of mold cavity
-                screw_together_columns(number_mold_joining_columns, lid_bottom_mold_height, anchor=BOTTOM, spin=0,
-                                       orient=UP);
-            else
-                // Add columns for the magnet traps on the outside of mold cavity
-                magnetic_columns(number_mold_joining_columns, lid_bottom_mold_height, anchor=BOTTOM, spin=0,
-                                 orient=UP);
+            if (!show_molded_part)  // Shouldn't need this check but normalization fails otherwise
+            {
+                if (use_screws_to_hold_together_mold_halves)
+                    // Add columns for the screws nut traps on the outside of mold cavity
+                    screw_together_columns(number_mold_joining_columns, lid_bottom_mold_height, anchor=BOTTOM, spin=0,
+                                           orient=UP);
+                else
+                    // Add columns for the magnet traps on the outside of mold cavity
+                    magnetic_columns(number_mold_joining_columns, lid_bottom_mold_height, anchor=BOTTOM, spin=0,
+                                     orient=UP);
+            }
         }
         
         down(difference_tolerance)
@@ -1371,6 +1448,7 @@ module lid_bottom_mold()
         
     }
 }
+
 
 module lid_cutting_jig()
 {
@@ -1498,6 +1576,7 @@ module lid_cutting_jig()
     }
 }
 
+
 module lid_top_from_mold(show_molded_part)
 {
     up(show_molded_part ? lid_mold_height : 0)
@@ -1513,6 +1592,7 @@ module lid_top_from_mold(show_molded_part)
     }
     
 }
+
 
 module lid_bottom_from_mold(show_molded_part)
 {
@@ -1553,6 +1633,7 @@ module lid_bottom_from_mold(show_molded_part)
         
     }
 }
+
 
 module show_parts()
 {
@@ -1604,15 +1685,15 @@ module show_parts()
     {
         lid_cutting_jig();
     }
-    else if (part_to_show == "18 mm port mold")
+    else if (part_to_show == "large port mold")
     {
         mold_for_bung_for_port(port_d);
     }
-    else if (part_to_show == "14 mm port mold")
+    else if (part_to_show == "small port mold")
     {
         mold_for_bung_for_port(small_port_d);
     }
-    else if (part_to_show == "10 mm port mold")
+    else if (part_to_show == "mini port mold")
     {
         mold_for_bung_for_port(mini_port_d);
     }
@@ -1624,26 +1705,41 @@ module show_parts()
     }
     else if (part_to_show == "test post hole fit")
     {
-        // Cut out a part of the lid top mold to print the parts for testing the fit of the post 
+        // Create the parts to test the fit of the post to the mold, and the cap to the post, and the cap for the
+        // mold screw hole
+        
+        // Cut out a part of the lid top mold to print the parts for testing the fit of the post
+        // Also optionally show the assembled positions and exploded view
+        thickness_of_mold = (bearing_width + mold_wall_thickness - height_of_post_recess);
+        
+        // A height offset for the bottom of the post for the exploded view
+        post_bottom_location = exploded_view ? 5 : 0;
         
         // The post for the center hole
-        up(height_of_post_recess)
+        up(height_of_post_recess + post_bottom_location)
         post_for_port_hole(height_of_posts_when_using_solid_bottom, shaft_clearance_d, post_specs_shaft, BOTTOM, false,
                            false, false, "S");
 
-        // Make the cap for the post for the shaft hole
-        left(bearing_od + 2 * bearing_pocket_wall_thickness)
-/*
-        // Use these 3 lines instead of the above line when visualising the part in place
-        up(height_of_posts_when_using_solid_bottom)
-        zflip()
-        zrot(30)
-*/
-        cap_for_port_hole_post(shaft_clearance_d, post_specs_shaft, "S");
+        post_screw_size = struct_val(post_specs_shaft, "size");
+        post_screw_head = struct_val(post_specs_shaft, "head");
+        post_screw_drive = struct_val(post_specs_shaft, "drive");
+        info_on_post_screw = screw_info(post_screw_size, head=post_screw_head, drive=post_screw_drive);
+        post_screw_head_height = struct_val(info_on_post_screw, "head_height");
+        info_on_post_nut = nut_info(post_screw_size);
+        post_nut_thickness = struct_val(info_on_post_nut, "thickness");
 
-        right(bearing_od + 2 * bearing_pocket_wall_thickness)
-        // Use this next line instead of the previous line when visualising the part in place
-//        down(bearing_width+mold_wall_thickness-height_of_post_recess)
+        // Show the cap, to the side if not assembled, otherwise in place, or above when exploded
+        up(!show_assembled ? 0 : 
+           (exploded_view ? cap_lid_height + cap_insert_height + 2 * post_nut_thickness: 0) + post_bottom_location +
+           height_of_posts_when_using_solid_bottom)
+        xrot(show_assembled ? 180 : 0)
+        zrot(show_assembled ? 30 : 0)
+        left(show_assembled ? 0 : bearing_od + 2 * bearing_pocket_wall_thickness)
+        cap_for_port_hole_post(shaft_clearance_d, post_specs_shaft, "S");
+        
+        // Show the lid top mold in the neighbourhood of the post, to the side if not assembled, otherwise in place
+        down(show_assembled ? thickness_of_mold : 0)
+        right(show_assembled ? 0 : bearing_od + 2 * bearing_pocket_wall_thickness)
         intersection()
         {
             lid_top_from_mold(show_molded_part);
@@ -1651,8 +1747,29 @@ module show_parts()
             cylinder(h=lid_mold_height, d=bearing_od, anchor=BOTTOM);
         }
         
+        if (show_assembled)
+        {
+ /*           
+           // Uncomment to show the surrounding lid mold as transparent as well
+           down(thickness_of_mold)
+           %lid_top_from_mold(show_molded_part);
+*/
+            
+            // Show the screw and nut in place or the exploded view
+            color("grey")
+            down(thickness_of_mold - (exploded_view ? 0 : length_of_screw_for_posts + post_screw_head_height))
+            screw(post_screw_size, head=post_screw_head, drive=post_screw_drive, length=length_of_screw_for_posts,
+                  orient=DOWN, anchor=BOTTOM);
+            
+            color("grey")
+            up(exploded_view ? height_of_posts_when_using_solid_bottom + 0.5 * post_nut_thickness + post_bottom_location: 
+               length_of_screw_for_posts - thickness_of_mold)
+            zrot(90)
+            nut(post_screw_size, thickness = "normal", anchor = BOTTOM);
+        }
+        
         // Make a plug for the lid screw hole
-        back(bearing_od + 2 * bearing_pocket_wall_thickness)
+        back(bearing_od + 2 * bearing_pocket_wall_thickness + (show_assembled ? jar_od/2 : 0))
         plug_for_post_screw_hole(shaft_clearance_d, post_specs_shaft, "S");
         
     }
